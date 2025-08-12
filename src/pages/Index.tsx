@@ -7,9 +7,9 @@ const Index = () => {
 
   useEffect(() => {
     // SEO
-    document.title = "root — Green AI Website Generator (Gemini Flash)";
+    document.title = "root — Green AI Website Generator (Gemini 2.5 Flash)";
     const desc =
-      "root is a green-themed AI website generator powered by Gemini Flash. Describe your site, get a live page.";
+      "root is a green-themed AI website generator powered by Gemini 2.5 Flash. Describe your site, get a live page.";
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) metaDesc.setAttribute("content", desc);
     const ogTitle = document.querySelector('meta[property="og:title"]');
@@ -45,7 +45,7 @@ const Index = () => {
             <h1 className="text-4xl sm:text-6xl font-bold tracking-tight bg-clip-text text-transparent"
               style={{ backgroundImage: "var(--gradient-primary)" }}
             >
-              AI website builder, powered by Gemini Flash
+              AI website builder, powered by Gemini 2.5 Flash
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
               Describe your idea in plain text and let <strong>root</strong> craft a live, beautiful page with a green design system.

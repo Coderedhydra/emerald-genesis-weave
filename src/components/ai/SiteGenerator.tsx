@@ -46,7 +46,7 @@ const SiteSchema = z.object({
     .min(1),
 });
 
-const DEFAULT_MODEL = "gemini-2.0-flash"; // configurable
+const DEFAULT_MODEL = "gemini-2.5-flash"; // configurable
 
 function cleanToJson(text: string) {
   // Remove code fences if present
@@ -191,7 +191,7 @@ Constraints:
                   aria-label="Model name"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Example: gemini-2.0-flash or gemini-1.5-flash
+                  Example: gemini-2.5-flash (default), gemini-2.0-flash
                 </p>
               </div>
             </CardContent>
