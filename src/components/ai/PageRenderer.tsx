@@ -1,14 +1,15 @@
 import { Button } from "@/components/ui/button";
-import { GeneratedSite } from "@/types/site";
+import { Section } from "@/types/site";
 
 type Props = {
-  site: GeneratedSite;
+  title?: string;
+  sections: Section[];
 };
 
-export function PageRenderer({ site }: Props) {
+export function PageRenderer({ title, sections }: Props) {
   return (
     <main>
-      {site.sections.map((section, i) => {
+      {sections.map((section, i) => {
         if (section.type === "hero") {
           return (
             <section

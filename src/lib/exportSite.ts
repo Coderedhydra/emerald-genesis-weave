@@ -132,3 +132,55 @@ export async function buildProjectZip(site: GeneratedSite): Promise<Blob> {
   const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
   return blob;
 }
+
+// MULTI-PAGE EXPORTER
+import type { GeneratedProject, ProjectPage, Section } from "@/types/site";
+
+function buildBodyFromSections(sections: Section[]): string {
+  // Reuse the section rendering from buildStandaloneHtml, but without wrapper tags
+  const fakeSite = { title: "", sections } as any;
+  const fullHtml = buildStandaloneHtml(fakeSite);
+  const bodyOpen = fullHtml.indexOf("<body>");
+  const bodyClose = fullHtml.lastIndexOf("</body>");
+  return bodyOpen !== -1 && bodyClose !== -1 && bodyClose > bodyOpen
+    ? fullHtml.substring(bodyOpen + "<body>".length, bodyClose)
+    : "";
+}
+
+function buildNavHtml(pages: ProjectPage[], activeSlug: string): string {
+  const links = pages
+    .map((p) => {
+      const href = p.slug === pages[0].slug ? "index.html" : `${p.slug}.html`;
+      const active = p.slug === activeSlug;
+      return `<a href="${href}" class="${active ? "btn" : ""}" style="margin-right:8px;display:inline-block;padding:6px 12px;border-radius:10px;border:1px solid var(--border);text-decoration:none">${escapeHtml(p.title)}</a>`;
+    })
+    .join("");
+  return `<header style="border-bottom:1px solid var(--border);"><div class="container" style="height:56px;display:flex;align-items:center;justify-content:space-between"><div style="display:flex;align-items:center;gap:10px"><div style="width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,var(--brand),var(--brand-strong))"></div><strong>root dev</strong></div><nav>${links}</nav></div></header>`;
+}
+
+export async function buildMultiPageZip(project: GeneratedProject): Promise<Blob> {
+  const zip = new JSZip();
+  const styles = buildStylesCss();
+  const script = buildScriptJs();
+  zip.file("styles.css", styles);
+  zip.file("script.js", script);
+  zip.file("site.json", JSON.stringify(project, null, 2));
+
+  const pages = project.pages;
+
+  pages.forEach((page, index) => {
+    const body = buildBodyFromSections(page.sections as Section[]);
+    const nav = buildNavHtml(pages, page.slug);
+    const html = `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>${escapeHtml(project.siteName)} — ${escapeHtml(page.title)}</title>\n    <link rel="stylesheet" href="styles.css" />\n  </head>\n  <body>\n    ${nav}\n    ${body}\n    <script src="script.js"></script>\n  </body>\n</html>`;
+    const fileName = index === 0 ? "index.html" : `${page.slug}.html`;
+    zip.file(fileName, html);
+  });
+
+  zip.file(
+    "README.md",
+    `# ${escapeHtml(project.siteName)}\n\nGenerated with root dev (multi-page).\n\n- Open \`index.html\` to view the Home page.\n- Each page is in its own HTML file, with shared \`styles.css\` and \`script.js\`.\n- Update \`site.json\` if you want to re-import this structure elsewhere.\n`
+  );
+
+  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+  return blob;
+}

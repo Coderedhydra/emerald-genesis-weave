@@ -11,47 +11,51 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 import { PageRenderer } from "./PageRenderer";
-import { GeneratedSite } from "@/types/site";
+import type { GeneratedProject, ProjectPage, Section } from "@/types/site";
 import { z } from "zod";
 import { buildStandaloneHtml, filenameForSite } from "@/lib/exportSite";
-import { buildProjectZip } from "@/lib/exportSite";
+import { buildProjectZip, buildMultiPageZip } from "@/lib/exportSite";
 
-const SiteSchema = z.object({
-  title: z.string(),
+const SectionSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("hero"),
+    headline: z.string(),
+    subheadline: z.string().optional(),
+    ctaLabel: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("features"),
+    title: z.string().optional(),
+    items: z.array(
+      z.object({
+        title: z.string(),
+        description: z.string(),
+        icon: z.string().optional(),
+      })
+    ),
+  }),
+  z.object({
+    type: z.literal("testimonial"),
+    quote: z.string(),
+    author: z.string(),
+  }),
+  z.object({
+    type: z.literal("cta"),
+    headline: z.string(),
+    ctaLabel: z.string().optional(),
+  }),
+]);
+
+const ProjectSchema = z.object({
+  siteName: z.string(),
   theme: z.enum(["green", "light", "dark"]).optional(),
-  sections: z
-    .array(
-      z.discriminatedUnion("type", [
-        z.object({
-          type: z.literal("hero"),
-          headline: z.string(),
-          subheadline: z.string().optional(),
-          ctaLabel: z.string().optional(),
-        }),
-        z.object({
-          type: z.literal("features"),
-          title: z.string().optional(),
-          items: z.array(
-            z.object({
-              title: z.string(),
-              description: z.string(),
-              icon: z.string().optional(),
-            })
-          ),
-        }),
-        z.object({
-          type: z.literal("testimonial"),
-          quote: z.string(),
-          author: z.string(),
-        }),
-        z.object({
-          type: z.literal("cta"),
-          headline: z.string(),
-          ctaLabel: z.string().optional(),
-        }),
-      ])
-    )
-    .min(1),
+  pages: z.array(
+    z.object({
+      slug: z.string().regex(/^[a-z0-9-]+$/),
+      title: z.string(),
+      sections: z.array(SectionSchema).min(1),
+    })
+  ).min(1),
 });
 
 const DEFAULT_MODEL = "gemini-2.5-flash"; // configurable
@@ -70,12 +74,13 @@ export function SiteGenerator() {
   const [apiKey, setApiKey] = useState<string>("");
   const [model, setModel] = useState<string>(DEFAULT_MODEL);
   const [prompt, setPrompt] = useState<string>(
-    "A clean product landing page for a sustainable AI website builder named 'root dev'. Focus on clarity, 3 feature cards, one testimonial, and a strong call-to-action."
+    "Create a full multi-page website for an AI integration services company named 'root dev'. Include Home, Services, Pricing, About, and Contact pages. Each page should have appropriate sections."
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [site, setSite] = useState<GeneratedSite | null>(null);
+  const [project, setProject] = useState<GeneratedProject | null>(null);
   const [viewport, setViewport] = useState<Viewport>("desktop");
+  const [activePageSlug, setActivePageSlug] = useState<string | null>(null);
 
   // Load from localStorage
   useEffect(() => {
@@ -108,13 +113,17 @@ export function SiteGenerator() {
  type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };
  type TestimonialSection = { type: "testimonial"; quote: string; author: string };
  type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };
- export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };
+ type Section = HeroSection | FeaturesSection | TestimonialSection | CtaSection;
+ type ProjectPage = { slug: string; title: string; sections: Section[] };
+ export type GeneratedProject = { siteName: string; theme?: "green"|"light"|"dark"; pages: ProjectPage[] };
 
  Constraints:
- - title must be short and brandable
+ - siteName must be short and brandable
  - theme should be "green" by default
- - Provide EXACTLY one hero, one features section (3 items), optionally one testimonial, and one cta.
- - No markdown fences. Output pure JSON.`,
+ - Provide 4-6 pages, for example: Home (hero, features, testimonial, cta), Services (features list), Pricing (features and cta), About (hero/testimonial), Contact (cta)
+ - Each page must include 1-3 sections appropriate to the page
+ - Slugs must be lowercase kebab-case
+ - Output pure JSON, no markdown fences.`,
     []
   );
 
@@ -146,7 +155,7 @@ export function SiteGenerator() {
             ],
             generationConfig: {
               temperature: 0.6,
-              maxOutputTokens: 1200,
+              maxOutputTokens: 1600,
             },
           }),
         }
@@ -164,8 +173,9 @@ export function SiteGenerator() {
       if (!text) throw new Error("No content returned by model");
 
       const jsonText = cleanToJson(text);
-      const parsed = SiteSchema.parse(JSON.parse(jsonText)) as GeneratedSite;
-      setSite(parsed);
+      const parsed = ProjectSchema.parse(JSON.parse(jsonText)) as GeneratedProject;
+      setProject(parsed);
+      setActivePageSlug(parsed.pages[0]?.slug || null);
     } catch (e: any) {
       console.error(e);
       setError(e.message || "Failed to generate site");
@@ -175,9 +185,11 @@ export function SiteGenerator() {
   }
 
   function handleDownload() {
-    if (!site) return;
-    const html = buildStandaloneHtml(site);
-    const filename = filenameForSite(site);
+    if (!project) return;
+    const activePage = project.pages.find((p) => p.slug === activePageSlug) || project.pages[0];
+    const siteShape = { title: activePage.title, theme: project.theme, sections: activePage.sections } as { title: string; theme?: string; sections: Section[] };
+    const html = buildStandaloneHtml(siteShape as any);
+    const filename = `${(activePage.slug || "page").toLowerCase()}.html`;
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -190,12 +202,12 @@ export function SiteGenerator() {
   }
 
   async function handleDownloadZip() {
-    if (!site) return;
-    const zipBlob = await buildProjectZip(site);
+    if (!project) return;
+    const zipBlob = await buildMultiPageZip(project);
     const a = document.createElement("a");
     const url = URL.createObjectURL(zipBlob);
     a.href = url;
-    a.download = `${(site.title || "site").toLowerCase().replace(/[^a-z0-9]+/g, "-") || "site"}.zip`;
+    a.download = `${(project.siteName || "site").toLowerCase().replace(/[^a-z0-9]+/g, "-") || "site"}.zip`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -208,6 +220,8 @@ export function SiteGenerator() {
       : viewport === "tablet"
       ? "w-[768px]"
       : "w-full max-w-5xl";
+
+  const activePage = project?.pages.find((p) => p.slug === activePageSlug) || project?.pages[0] || null;
 
   return (
     <section className="py-6">
@@ -290,10 +304,22 @@ export function SiteGenerator() {
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="size-6 rounded" style={{ backgroundImage: "var(--gradient-primary)" }} />
                   <span className="font-medium truncate">
-                    {site?.title ?? "Preview"}
+                    {project?.siteName ?? "Preview"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
+                  {project && (
+                    <select
+                      className="h-8 border rounded px-2 text-sm bg-background"
+                      value={activePageSlug ?? project.pages[0]?.slug}
+                      onChange={(e) => setActivePageSlug(e.target.value)}
+                      aria-label="Select page"
+                    >
+                      {project.pages.map((p) => (
+                        <option key={p.slug} value={p.slug}>{p.title}</option>
+                      ))}
+                    </select>
+                  )}
                   <Button
                     variant={viewport === "mobile" ? "secondary" : "outline"}
                     size="sm"
@@ -331,7 +357,7 @@ export function SiteGenerator() {
                     variant="outline"
                     size="sm"
                     onClick={handleDownload}
-                    disabled={!site}
+                    disabled={!project}
                     aria-label="Download website"
                   >
                     Download
@@ -340,7 +366,7 @@ export function SiteGenerator() {
                     variant="secondary"
                     size="sm"
                     onClick={handleDownloadZip}
-                    disabled={!site}
+                    disabled={!project}
                     aria-label="Download project ZIP"
                   >
                     Download ZIP
@@ -363,8 +389,10 @@ export function SiteGenerator() {
                           </div>
                         </div>
                       )}
-                      {!loading && site && <PageRenderer site={site} />}
-                      {!loading && !site && (
+                      {!loading && project && activePage && (
+                        <PageRenderer title={activePage.title} sections={activePage.sections as Section[]} />
+                      )}
+                      {!loading && !project && (
                         <div className="p-10 text-center">
                           <h2 className="text-xl font-semibold">Your live preview</h2>
                           <p className="mt-2 text-sm text-muted-foreground">

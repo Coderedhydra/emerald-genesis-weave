@@ -23,8 +23,22 @@ export type CtaSection = {
   ctaLabel?: string;
 };
 
+export type Section = HeroSection | FeaturesSection | TestimonialSection | CtaSection;
+
 export type GeneratedSite = {
   title: string;
   theme?: "green" | "light" | "dark";
   sections: Array<HeroSection | FeaturesSection | TestimonialSection | CtaSection>;
+};
+
+export type ProjectPage = {
+  slug: string; // lowercase kebab-case
+  title: string;
+  sections: Section[];
+};
+
+export type GeneratedProject = {
+  siteName: string;
+  theme?: "green" | "light" | "dark";
+  pages: ProjectPage[];
 };
