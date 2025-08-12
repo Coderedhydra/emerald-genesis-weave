@@ -103,7 +103,7 @@ const ReactProjectSchema = z.object({
   shadcnComponents: z.array(z.string()),
 });
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-2.0-flash-exp";
 
 function cleanToJson(text: string) {
   return text
@@ -149,6 +149,12 @@ async function attemptAutoFix({
   );
   if (!res.ok) {
     const txt = await res.text();
+    const errorData = JSON.parse(txt);
+    
+    if (res.status === 503 && errorData?.error?.status === "UNAVAILABLE") {
+      throw new Error("Model is currently overloaded. Please try a different model or try again later.");
+    }
+    
     throw new Error(`Gemini fixer error: ${res.status} ${txt}`);
   }
   const data = await res.json();
@@ -396,6 +402,12 @@ export function SiteGenerator() {
 
       if (!res.ok) {
         const txt = await res.text();
+        const errorData = JSON.parse(txt);
+        
+        if (res.status === 503 && errorData?.error?.status === "UNAVAILABLE") {
+          throw new Error("Model is currently overloaded. Please try a different model (e.g., gemini-2.0-flash-exp) or try again later.");
+        }
+        
         throw new Error(`Gemini error: ${res.status} ${txt}`);
       }
 
@@ -619,6 +631,25 @@ export function SiteGenerator() {
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                 />
+              </div>
+
+              {/* Model */}
+              <div className="space-y-2">
+                <Label htmlFor="model">Model</Label>
+                <Select value={model} onValueChange={setModel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (Recommended)</SelectItem>
+                    <SelectItem value="gemini-2.5-flash">gemini-2.5-flash (Latest)</SelectItem>
+                    <SelectItem value="gemini-2.0-flash">gemini-2.0-flash (Stable)</SelectItem>
+                    <SelectItem value="gemini-1.5-flash">gemini-1.5-flash (Fallback)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Use gemini-2.0-flash-exp for better reliability
+                </p>
               </div>
 
               {/* Generation Type */}
