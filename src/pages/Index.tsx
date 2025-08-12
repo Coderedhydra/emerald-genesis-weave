@@ -7,13 +7,13 @@ const Index = () => {
 
   useEffect(() => {
     // SEO
-    document.title = "root — Green AI Website Generator (Gemini 2.5 Flash)";
-    const desc =
-      "root is a green-themed AI website generator powered by Gemini 2.5 Flash. Describe your site, get a live page.";
+    document.title = "root dev — Green AI Website Generator (Gemini 2.5 Flash)";
+          const desc =
+        "root dev is a green-themed AI website generator powered by Gemini 2.5 Flash. Describe your site, get a live page.";
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) metaDesc.setAttribute("content", desc);
     const ogTitle = document.querySelector('meta[property="og:title"]');
-    ogTitle?.setAttribute("content", "root — AI Website Generator");
+    ogTitle?.setAttribute("content", "root dev — AI Website Generator");
     const ogDesc = document.querySelector('meta[property="og:description"]');
     ogDesc?.setAttribute("content", desc);
     let link = document.querySelector("link[rel='canonical']") as HTMLLinkElement | null;
@@ -29,9 +29,9 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="section-container h-16 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2" aria-label="root home">
+          <a href="/" className="flex items-center gap-2" aria-label="root dev home">
             <div className="size-8 rounded-md" style={{ backgroundImage: "var(--gradient-primary)" }} />
-            <span className="font-semibold">root</span>
+            <span className="font-semibold">root dev</span>
           </a>
           <nav aria-label="Primary">
             <a className="text-sm text-muted-foreground hover:text-foreground" href="#generate">Generate</a>
@@ -48,7 +48,7 @@ const Index = () => {
               AI website builder, powered by Gemini 2.5 Flash
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
-              Describe your idea in plain text and let <strong>root</strong> craft a live, beautiful page with a green design system.
+              Describe your idea in plain text and let <strong>root dev</strong> craft a live, beautiful page with a green design system.
             </p>
             <div className="mt-10 flex gap-4">
               <Button variant="hero" size="lg" asChild>

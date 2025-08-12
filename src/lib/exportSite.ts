@@ -1,4 +1,5 @@
 import type { GeneratedSite } from "@/types/site";
+import JSZip from "jszip";
 
 function escapeHtml(input: string): string {
   return input
@@ -99,4 +100,35 @@ export function buildStandaloneHtml(site: GeneratedSite): string {
     ${sectionsHtml}
   </body>
 </html>`;
+}
+
+function buildStylesCss(): string {
+  return `/* Project styles */\n/* You can split this file as needed. */\n`;
+}
+
+function buildScriptJs(): string {
+  return `// Optional interactivity can be added here.\n// Example: smooth scroll for same-page anchors.\n(function(){\n  document.addEventListener('click', function(e){\n    const a = e.target instanceof Element ? e.target.closest('a[href^="#"]') : null;\n    if(!a) return;\n    const id = a.getAttribute('href');\n    if(!id || id.length < 2) return;\n    const el = document.querySelector(id);\n    if(!el) return;\n    e.preventDefault();\n    el.scrollIntoView({behavior:'smooth'});\n  });\n})();\n`;
+}
+
+export async function buildProjectZip(site: GeneratedSite): Promise<Blob> {
+  const zip = new JSZip();
+  const projectSlug = slugify(site.title || "site");
+
+  // Files
+  const fullHtml = buildStandaloneHtml(site);
+  const bodyOpen = fullHtml.indexOf("<body>");
+  const bodyClose = fullHtml.lastIndexOf("</body>");
+  const bodyContent = bodyOpen !== -1 && bodyClose !== -1 && bodyClose > bodyOpen
+    ? fullHtml.substring(bodyOpen + "<body>".length, bodyClose)
+    : "";
+  const indexHtml = `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>${escapeHtml(site.title || "Site")}</title>\n    <link rel="stylesheet" href="styles.css" />\n  </head>\n  <body>\n    ${bodyContent}\n    <script src="script.js"></script>\n  </body>\n</html>`;
+
+  zip.file("index.html", indexHtml);
+  zip.file("styles.css", buildStylesCss());
+  zip.file("script.js", buildScriptJs());
+  zip.file("site.json", JSON.stringify(site, null, 2));
+  zip.file("README.md", `# ${escapeHtml(site.title || "Site")}\n\nGenerated with root dev.\n\n- Open \`index.html\` in your browser.\n- Edit \`styles.css\` and \`script.js\` to customize.\n- Site structure is mirrored from \`site.json\`.\n`);
+
+  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+  return blob;
 }

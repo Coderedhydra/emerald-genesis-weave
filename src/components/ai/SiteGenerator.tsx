@@ -14,6 +14,7 @@ import { PageRenderer } from "./PageRenderer";
 import { GeneratedSite } from "@/types/site";
 import { z } from "zod";
 import { buildStandaloneHtml, filenameForSite } from "@/lib/exportSite";
+import { buildProjectZip } from "@/lib/exportSite";
 
 const SiteSchema = z.object({
   title: z.string(),
@@ -69,7 +70,7 @@ export function SiteGenerator() {
   const [apiKey, setApiKey] = useState<string>("");
   const [model, setModel] = useState<string>(DEFAULT_MODEL);
   const [prompt, setPrompt] = useState<string>(
-    "A clean product landing page for a sustainable AI website builder named 'root'. Focus on clarity, 3 feature cards, one testimonial, and a strong call-to-action."
+    "A clean product landing page for a sustainable AI website builder named 'root dev'. Focus on clarity, 3 feature cards, one testimonial, and a strong call-to-action."
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -182,6 +183,19 @@ export function SiteGenerator() {
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleDownloadZip() {
+    if (!site) return;
+    const zipBlob = await buildProjectZip(site);
+    const a = document.createElement("a");
+    const url = URL.createObjectURL(zipBlob);
+    a.href = url;
+    a.download = `${(site.title || "site").toLowerCase().replace(/[^a-z0-9]+/g, "-") || "site"}.zip`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -321,6 +335,15 @@ export function SiteGenerator() {
                     aria-label="Download website"
                   >
                     Download
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleDownloadZip}
+                    disabled={!site}
+                    aria-label="Download project ZIP"
+                  >
+                    Download ZIP
                   </Button>
                 </div>
               </div>
