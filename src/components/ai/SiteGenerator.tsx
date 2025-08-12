@@ -103,7 +103,7 @@ const ReactProjectSchema = z.object({
   shadcnComponents: z.array(z.string()),
 });
 
-const DEFAULT_MODEL = "gemini-2.0-flash-exp";
+const DEFAULT_MODEL = "gemini-1.5-flash";
 
 function cleanToJson(text: string) {
   return text
@@ -378,72 +378,86 @@ export function SiteGenerator() {
         : fullstackSystemPrompt;
       const userInstruction = `${prompt}`;
 
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-          model
-        )}:generateContent?key=${encodeURIComponent(apiKey)}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [
-              { role: "user", parts: [{ text: systemPrompt }] },
-              { role: "user", parts: [{ text: userInstruction }] },
-            ],
-            generationConfig: {
-              temperature: 0.7,
-              maxOutputTokens: generationType === "react-vite" ? 12000 : generationType === "fullstack" ? 8000 : 1200,
-            },
-          }),
-        }
-      );
+      // Try different models if one is overloaded
+      const modelsToTry = [
+        model, // Try user's selected model first
+        "gemini-1.5-flash", // Most reliable fallback
+        "gemini-2.0-flash", // Stable fallback
+        "gemini-2.0-flash-exp" // Experimental fallback
+      ];
 
-      if (!res.ok) {
-        const txt = await res.text();
-        const errorData = JSON.parse(txt);
-        
-        if (res.status === 503 && errorData?.error?.status === "UNAVAILABLE") {
-          throw new Error("Model is currently overloaded. Please try a different model (e.g., gemini-2.0-flash-exp) or try again later.");
-        }
-        
-        throw new Error(`Gemini error: ${res.status} ${txt}`);
-      }
+      let lastError = null;
+      
+      for (const currentModel of modelsToTry) {
+        try {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+              currentModel
+            )}:generateContent?key=${encodeURIComponent(apiKey)}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                contents: [
+                  { role: "user", parts: [{ text: systemPrompt }] },
+                  { role: "user", parts: [{ text: userInstruction }] },
+                ],
+                generationConfig: {
+                  temperature: 0.7,
+                  maxOutputTokens: generationType === "react-vite" ? 12000 : generationType === "fullstack" ? 8000 : 1200,
+                },
+              }),
+            }
+          );
 
-      const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text as
-        | string
-        | undefined;
-      if (!text) throw new Error("No content returned by model");
+          if (!res.ok) {
+            const txt = await res.text();
+            const errorData = JSON.parse(txt);
+            
+            if (res.status === 503 && errorData?.error?.status === "UNAVAILABLE") {
+              lastError = `Model ${currentModel} is overloaded.`;
+              continue; // Try next model
+            }
+            
+            throw new Error(`Gemini error: ${res.status} ${txt}`);
+          }
 
-      setLastRawText(text);
-      const jsonText = cleanToJson(text);
+          const data = await res.json();
+          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text as
+            | string
+            | undefined;
+          if (!text) throw new Error("No content returned by model");
 
-      try {
-        if (generationType === "preview") {
-          const parsed = SiteSchema.parse(JSON.parse(jsonText)) as GeneratedSite;
-          setSite(parsed);
-          setActiveTab("preview");
-        } else if (generationType === "react-vite") {
-          const parsed = ReactProjectSchema.parse(JSON.parse(jsonText)) as GeneratedReactProject;
-          setReactProject(parsed);
-          setActiveTab("app");
-        } else {
-          const parsed = WebsiteSchema.parse(JSON.parse(jsonText)) as GeneratedWebsite;
-          setWebsite(parsed);
-          setActiveTab("html");
-        }
-      } catch (parseErr: any) {
-        // Attempt auto-fix once
-        const schemaDesc = generationType === "preview"
-          ? `type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };\n` +
-            `type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };\n` +
-            `type TestimonialSection = { type: "testimonial"; quote: string; author: string };\n` +
-            `type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };\n` +
-            `export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };`
-          : generationType === "react-vite"
-          ? `{
+          setLastRawText(text);
+          const jsonText = cleanToJson(text);
+
+          try {
+            if (generationType === "preview") {
+              const parsed = SiteSchema.parse(JSON.parse(jsonText)) as GeneratedSite;
+              setSite(parsed);
+              setActiveTab("preview");
+            } else if (generationType === "react-vite") {
+              const parsed = ReactProjectSchema.parse(JSON.parse(jsonText)) as GeneratedReactProject;
+              setReactProject(parsed);
+              setActiveTab("app");
+            } else {
+              const parsed = WebsiteSchema.parse(JSON.parse(jsonText)) as GeneratedWebsite;
+              setWebsite(parsed);
+              setActiveTab("html");
+            }
+            return; // Success! Exit the retry loop
+          } catch (parseErr: any) {
+            // Attempt auto-fix once
+            const schemaDesc = generationType === "preview"
+              ? `type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };\n` +
+                `type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };\n` +
+                `type TestimonialSection = { type: "testimonial"; quote: string; author: string };\n` +
+                `type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };\n` +
+                `export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };`
+              : generationType === "react-vite"
+              ? `{
   "title": "Project Title",
   "description": "Brief description",
   "theme": "green" | "light" | "dark",
@@ -467,7 +481,7 @@ export function SiteGenerator() {
   "interactive": true,
   "shadcnComponents": ["button", "card", "input"]
 }`
-          : `{
+              : `{
   "title": "Website Title",
   "description": "Brief description",
   "theme": "green" | "light" | "dark",
@@ -486,33 +500,41 @@ export function SiteGenerator() {
   "interactive": true
 }`;
 
-        try {
-          const fixed = await attemptAutoFix({
-            apiKey,
-            model,
-            schemaDescription: schemaDesc,
-            badText: jsonText,
-            maxOutputTokens: generationType === "react-vite" ? 6000 : generationType === "fullstack" ? 4000 : 800,
-          });
-          if (generationType === "preview") {
-            const parsed = SiteSchema.parse(JSON.parse(fixed)) as GeneratedSite;
-            setSite(parsed);
-            setActiveTab("preview");
-          } else if (generationType === "react-vite") {
-            const parsed = ReactProjectSchema.parse(JSON.parse(fixed)) as GeneratedReactProject;
-            setReactProject(parsed);
-            setActiveTab("app");
-          } else {
-            const parsed = WebsiteSchema.parse(JSON.parse(fixed)) as GeneratedWebsite;
-            setWebsite(parsed);
-            setActiveTab("html");
+            try {
+              const fixed = await attemptAutoFix({
+                apiKey,
+                model: currentModel,
+                schemaDescription: schemaDesc,
+                badText: jsonText,
+                maxOutputTokens: generationType === "react-vite" ? 6000 : generationType === "fullstack" ? 4000 : 800,
+              });
+              if (generationType === "preview") {
+                const parsed = SiteSchema.parse(JSON.parse(fixed)) as GeneratedSite;
+                setSite(parsed);
+                setActiveTab("preview");
+              } else if (generationType === "react-vite") {
+                const parsed = ReactProjectSchema.parse(JSON.parse(fixed)) as GeneratedReactProject;
+                setReactProject(parsed);
+                setActiveTab("app");
+              } else {
+                const parsed = WebsiteSchema.parse(JSON.parse(fixed)) as GeneratedWebsite;
+                setWebsite(parsed);
+                setActiveTab("html");
+              }
+              return; // Success! Exit the retry loop
+            } catch (fixErr: any) {
+              lastError = `Generation returned invalid JSON and auto-fix failed: ${fixErr?.message || "unknown error"}`;
+              continue; // Try next model
+            }
           }
-        } catch (fixErr: any) {
-          setError(
-            `Generation returned invalid JSON and auto-fix failed: ${fixErr?.message || "unknown error"}`
-          );
+        } catch (modelError: any) {
+          lastError = modelError.message;
+          continue; // Try next model
         }
       }
+      
+      // If we get here, all models failed
+      throw new Error(`All models failed. ${lastError || "Unknown error"}`);
     } catch (e: any) {
       console.error(e);
       setError(e.message || "Failed to generate website");
@@ -641,14 +663,14 @@ export function SiteGenerator() {
                     <SelectValue placeholder="Select model" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (Recommended)</SelectItem>
-                    <SelectItem value="gemini-2.5-flash">gemini-2.5-flash (Latest)</SelectItem>
+                    <SelectItem value="gemini-1.5-flash">gemini-1.5-flash (Most Reliable)</SelectItem>
                     <SelectItem value="gemini-2.0-flash">gemini-2.0-flash (Stable)</SelectItem>
-                    <SelectItem value="gemini-1.5-flash">gemini-1.5-flash (Fallback)</SelectItem>
+                    <SelectItem value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (Experimental)</SelectItem>
+                    <SelectItem value="gemini-2.5-flash">gemini-2.5-flash (Latest)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Use gemini-2.0-flash-exp for better reliability
+                  Use gemini-1.5-flash for best reliability
                 </p>
               </div>
 
