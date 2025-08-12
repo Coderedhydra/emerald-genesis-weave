@@ -16,7 +16,7 @@ import {
 import { PageRenderer } from "./PageRenderer";
 import { GeneratedSite, GeneratedWebsite } from "@/types/site";
 import { z } from "zod";
-import { Download, Code, Globe, Server, Smartphone, Tablet, Monitor } from "lucide-react";
+import { Download, Code, Globe, Server, Smartphone, Tablet, Monitor, Bug } from "lucide-react";
 
 const SiteSchema = z.object({
   title: z.string(),
@@ -75,6 +75,19 @@ const WebsiteSchema = z.object({
   interactive: z.boolean(),
 });
 
+// Schema for auto-fix responses where fields are optional and represent patches
+const FixSchema = z.object({
+  files: z
+    .object({
+      html: z.string().optional(),
+      css: z.string().optional(),
+      js: z.string().optional(),
+    })
+    .partial()
+    .optional(),
+  notes: z.string().optional(),
+});
+
 const DEFAULT_MODEL = "gemini-2.5-flash";
 
 function cleanToJson(text: string) {
@@ -101,6 +114,11 @@ export function SiteGenerator() {
   const [website, setWebsite] = useState<GeneratedWebsite | null>(null);
   const [viewport, setViewport] = useState<Viewport>("desktop");
   const [activeTab, setActiveTab] = useState("preview");
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [consoleLogs, setConsoleLogs] = useState<string[]>([]);
+  const [fixLoading, setFixLoading] = useState(false);
+  const [fixError, setFixError] = useState<string | null>(null);
+  const [fixNotes, setFixNotes] = useState<string | null>(null);
 
   // Load from localStorage
   useEffect(() => {
@@ -132,14 +150,35 @@ export function SiteGenerator() {
     if (generationType) localStorage.setItem("generation_type", generationType);
   }, [generationType]);
 
+  // Listen for iframe error messages
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      const data = e.data as any;
+      if (!data || typeof data !== "object") return;
+      if (data.type === "iframe-error") {
+        setRuntimeError(data.message || "Unknown error");
+        setConsoleLogs((prev) => [...prev, data.message || ""]);
+      }
+      if (data.type === "iframe-log") {
+        if (typeof data.message === "string") {
+          setConsoleLogs((prev) => [...prev, data.message]);
+        } else if (Array.isArray(data.message)) {
+          setConsoleLogs((prev) => [...prev, ...data.message.map(String)]);
+        }
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
   const previewSystemPrompt = useMemo(
     () =>
       `You are an expert product designer and front-end architect. Generate only JSON, no prose. The JSON must conform to this TypeScript type without extra fields:
 
-type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };
-type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };
-type TestimonialSection = { type: "testimonial"; quote: string; author: string };
-type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };
+Type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };
+Type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };
+Type TestimonialSection = { type: "testimonial"; quote: string; author: string };
+Type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };
 export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };
 
 Constraints:
@@ -188,6 +227,24 @@ Requirements:
     []
   );
 
+  const fixSystemPrompt = useMemo(
+    () =>
+      `You are an expert front-end developer and QA engineer. You are given website code (HTML/CSS/JS) and a runtime error captured from the browser. Return ONLY JSON without markdown fences matching this structure:
+{
+  "files": {
+    "html": "optional fixed HTML if changes are needed",
+    "css": "optional fixed CSS if changes are needed",
+    "js": "optional fixed JavaScript if changes are needed"
+  },
+  "notes": "brief explanation of the fix"
+}
+Rules:
+- Do not invent unrelated features.
+- Prefer minimal changes required to fix the error.
+- If no change is needed for a file, omit it.`,
+    []
+  );
+
   const downloadWebsite = () => {
     if (!website) return;
 
@@ -229,6 +286,9 @@ Requirements:
     setError(null);
     setSite(null);
     setWebsite(null);
+    setRuntimeError(null);
+    setConsoleLogs([]);
+    setFixNotes(null);
     
     try {
       if (!apiKey) {
@@ -292,12 +352,98 @@ Requirements:
     }
   }
 
+  async function handleAutoFix() {
+    if (!website) return;
+    setFixLoading(true);
+    setFixError(null);
+    setFixNotes(null);
+    try {
+      if (!apiKey) {
+        throw new Error("Missing API key. Enter your Gemini API key above.");
+      }
+
+      const context = `RUNTIME ERROR:\n${runtimeError || ""}\n\nCONSOLE LOGS:\n${consoleLogs.join("\n")}\n\nCURRENT FILES:\nHTML:\n${website.files.html}\n\nCSS:\n${website.files.css}\n\nJS:\n${website.files.js || "// none"}`;
+
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+          model
+        )}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              { role: "user", parts: [{ text: fixSystemPrompt }] },
+              { role: "user", parts: [{ text: context }] },
+            ],
+            generationConfig: { temperature: 0.3, maxOutputTokens: 2000 },
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Gemini error: ${res.status} ${txt}`);
+      }
+
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text as string | undefined;
+      if (!text) throw new Error("No content returned by model");
+      const jsonText = cleanToJson(text);
+      const fix = FixSchema.parse(JSON.parse(jsonText));
+
+      const nextWebsite: GeneratedWebsite = {
+        ...website,
+        files: {
+          ...website.files,
+          html: fix.files?.html ?? website.files.html,
+          css: fix.files?.css ?? website.files.css,
+          js: fix.files?.js ?? website.files.js,
+        },
+      };
+      setWebsite(nextWebsite);
+      setRuntimeError(null);
+      setFixNotes(fix.notes || null);
+    } catch (e: any) {
+      console.error(e);
+      setFixError(e.message || "Failed to auto-fix");
+    } finally {
+      setFixLoading(false);
+    }
+  }
+
   const frameWidthClass =
     viewport === "mobile"
       ? "w-[375px]"
       : viewport === "tablet"
       ? "w-[768px]"
       : "w-full max-w-5xl";
+
+  // Inline script injected into iframe to report errors and console logs back to parent
+  const iframeReporterScript = `
+(function(){
+  function send(type, message){
+    try { parent.postMessage({ type, message }, '*'); } catch(e) {}
+  }
+  const origError = console.error;
+  const origLog = console.log;
+  console.error = function(){
+    try { send('iframe-log', Array.from(arguments).map(String)); } catch(_) {}
+    return origError.apply(console, arguments);
+  };
+  console.log = function(){
+    try { send('iframe-log', Array.from(arguments).map(String)); } catch(_) {}
+    return origLog.apply(console, arguments);
+  };
+  window.addEventListener('error', function(ev){
+    send('iframe-error', (ev && ev.message) ? ev.message : 'Unknown runtime error');
+  });
+  window.addEventListener('unhandledrejection', function(ev){
+    const msg = ev && ev.reason ? (ev.reason.message || String(ev.reason)) : 'Unhandled promise rejection';
+    send('iframe-error', msg);
+  });
+})();
+`; 
 
   return (
     <section className="py-6">
@@ -430,6 +576,29 @@ Requirements:
                   </CardContent>
                 </Card>
               )}
+
+              {runtimeError && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Bug className="w-5 h-5" /> Runtime Error
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-destructive break-words">{runtimeError}</p>
+                    <div className="flex gap-2">
+                      <Button onClick={handleAutoFix} disabled={fixLoading} variant="secondary">
+                        {fixLoading ? "Fixing..." : "Auto Fix with Gemini"}
+                      </Button>
+                      <Button onClick={() => { setRuntimeError(null); setConsoleLogs([]); setFixError(null); setFixNotes(null); }} variant="outline">
+                        Dismiss
+                      </Button>
+                    </div>
+                    {fixError && <p className="text-sm text-destructive">{fixError}</p>}
+                    {fixNotes && <p className="text-xs text-muted-foreground">{fixNotes}</p>}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </ResizablePanel>
 
@@ -507,7 +676,8 @@ Requirements:
                                 </head>
                                 <body>
                                   ${website.files.html}
-                                  <script>${website.files.js || ''}</script>
+                                  <script>${iframeReporterScript}<\/script>
+                                  <script>${website.files.js || ''}<\/script>
                                 </body>
                               </html>
                             `}
