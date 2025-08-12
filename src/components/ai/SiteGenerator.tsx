@@ -14,7 +14,7 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 import { PageRenderer } from "./PageRenderer";
-import { GeneratedSite, GeneratedWebsite } from "@/types/site";
+import { GeneratedSite, GeneratedWebsite, GeneratedReactProject } from "@/types/site";
 import { z } from "zod";
 import { Download, Code, Globe, Server, Smartphone, Tablet, Monitor } from "lucide-react";
 
@@ -77,6 +77,32 @@ const WebsiteSchema = z.object({
   interactive: z.boolean(),
 });
 
+const ReactProjectSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  theme: z.enum(["green", "light", "dark"]).optional(),
+  framework: z.literal("react-vite-typescript"),
+  files: z.object({
+    packageJson: z.string(),
+    viteConfig: z.string(),
+    tsConfig: z.string(),
+    tailwindConfig: z.string(),
+    postcssConfig: z.string(),
+    indexHtml: z.string(),
+    mainTsx: z.string(),
+    appTsx: z.string(),
+    appCss: z.string(),
+    components: z.record(z.string()),
+    pages: z.record(z.string()),
+    lib: z.record(z.string()),
+  }),
+  additionalFiles: z.record(z.string()).optional(),
+  features: z.array(z.string()),
+  responsive: z.boolean(),
+  interactive: z.boolean(),
+  shadcnComponents: z.array(z.string()),
+});
+
 const DEFAULT_MODEL = "gemini-2.5-flash";
 
 function cleanToJson(text: string) {
@@ -132,19 +158,20 @@ async function attemptAutoFix({
 }
 
 type Viewport = "desktop" | "tablet" | "mobile";
-type GenerationType = "preview" | "fullstack";
+type GenerationType = "preview" | "fullstack" | "react-vite";
 
 export function SiteGenerator() {
   const [apiKey, setApiKey] = useState<string>("");
   const [model, setModel] = useState<string>(DEFAULT_MODEL);
   const [prompt, setPrompt] = useState<string>(
-    "Create a modern e-commerce landing page for sustainable fashion with interactive product gallery, contact form, and responsive design. Include Node.js backend for form handling."
+    "Create a modern React application for a sustainable fashion e-commerce site with product gallery, shopping cart, and user authentication. Use shadcn-ui components and include TypeScript types."
   );
   const [generationType, setGenerationType] = useState<GenerationType>("preview");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [site, setSite] = useState<GeneratedSite | null>(null);
   const [website, setWebsite] = useState<GeneratedWebsite | null>(null);
+  const [reactProject, setReactProject] = useState<GeneratedReactProject | null>(null);
   const [viewport, setViewport] = useState<Viewport>("desktop");
   const [activeTab, setActiveTab] = useState("preview");
   const [lastRawText, setLastRawText] = useState<string | null>(null);
@@ -215,6 +242,23 @@ export function SiteGenerator() {
     []
   );
 
+  const reactSystemPrompt = useMemo(
+    () =>
+      `You are an expert React/TypeScript developer. Generate a complete Vite + React + TypeScript project with shadcn-ui components. Return only JSON without markdown fences.\n\n` +
+      `The JSON must conform to this structure:\n` +
+      `{\n  "title": "Project Title",\n  "description": "Brief description",\n  "theme": "green" | "light" | "dark",\n  "framework": "react-vite-typescript",\n  "files": {\n    "packageJson": "Complete package.json with all dependencies including React, Vite, TypeScript, Tailwind, shadcn-ui",\n    "viteConfig": "Vite configuration with React plugin",\n    "tsConfig": "TypeScript configuration",\n    "tailwindConfig": "Tailwind CSS configuration with shadcn-ui",\n    "postcssConfig": "PostCSS configuration",\n    "indexHtml": "HTML entry point",\n    "mainTsx": "React entry point with providers",\n    "appTsx": "Main App component",\n    "appCss": "Global CSS with Tailwind imports",\n    "components": { "ComponentName.tsx": "React component code" },\n    "pages": { "PageName.tsx": "Page component code" },\n    "lib": { "utils.ts": "Utility functions" }\n  },\n  "additionalFiles": { "path/filename": "file content" } (optional),\n  "features": ["responsive", "interactive", "accessible", "seo-optimized"],\n  "responsive": true,\n  "interactive": true,\n  "shadcnComponents": ["button", "card", "input", "etc"]\n}\n\n` +
+      `Requirements:\n` +
+      `- Use Vite as build tool\n` +
+      `- Include TypeScript configuration\n` +
+      `- Set up Tailwind CSS with shadcn-ui\n` +
+      `- Create reusable React components\n` +
+      `- Use modern React patterns (hooks, functional components)\n` +
+      `- Include proper TypeScript types\n` +
+      `- Add shadcn-ui components as needed\n` +
+      `- Make it production-ready with proper imports and exports`,
+    []
+  );
+
   const downloadWebsite = () => {
     if (!website) return;
 
@@ -257,11 +301,63 @@ export function SiteGenerator() {
     });
   };
 
+  const downloadReactProject = () => {
+    if (!reactProject) return;
+
+    const files = [
+      { name: 'package.json', content: reactProject.files.packageJson },
+      { name: 'vite.config.ts', content: reactProject.files.viteConfig },
+      { name: 'tsconfig.json', content: reactProject.files.tsConfig },
+      { name: 'tailwind.config.js', content: reactProject.files.tailwindConfig },
+      { name: 'postcss.config.js', content: reactProject.files.postcssConfig },
+      { name: 'index.html', content: reactProject.files.indexHtml },
+      { name: 'src/main.tsx', content: reactProject.files.mainTsx },
+      { name: 'src/App.tsx', content: reactProject.files.appTsx },
+      { name: 'src/App.css', content: reactProject.files.appCss },
+    ];
+
+    // Add components
+    Object.entries(reactProject.files.components).forEach(([name, content]) => {
+      files.push({ name: `src/components/${name}`, content });
+    });
+
+    // Add pages
+    Object.entries(reactProject.files.pages).forEach(([name, content]) => {
+      files.push({ name: `src/pages/${name}`, content });
+    });
+
+    // Add lib files
+    Object.entries(reactProject.files.lib).forEach(([name, content]) => {
+      files.push({ name: `src/lib/${name}`, content });
+    });
+
+    // Add additional files
+    if (reactProject.additionalFiles) {
+      Object.entries(reactProject.additionalFiles).forEach(([path, content]) => {
+        files.push({ name: path, content });
+      });
+    }
+
+    // Create and download files
+    files.forEach(file => {
+      const blob = new Blob([file.content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  };
+
   async function handleGenerate() {
     setLoading(true);
     setError(null);
     setSite(null);
     setWebsite(null);
+    setReactProject(null);
     setLastRawText(null);
     
     try {
@@ -271,7 +367,11 @@ export function SiteGenerator() {
         );
       }
 
-      const systemPrompt = generationType === "preview" ? previewSystemPrompt : fullstackSystemPrompt;
+      const systemPrompt = generationType === "preview" 
+        ? previewSystemPrompt 
+        : generationType === "react-vite" 
+        ? reactSystemPrompt 
+        : fullstackSystemPrompt;
       const userInstruction = `${prompt}`;
 
       const res = await fetch(
@@ -290,7 +390,7 @@ export function SiteGenerator() {
             ],
             generationConfig: {
               temperature: 0.7,
-              maxOutputTokens: generationType === "fullstack" ? 8000 : 1200,
+              maxOutputTokens: generationType === "react-vite" ? 12000 : generationType === "fullstack" ? 8000 : 1200,
             },
           }),
         }
@@ -315,6 +415,10 @@ export function SiteGenerator() {
           const parsed = SiteSchema.parse(JSON.parse(jsonText)) as GeneratedSite;
           setSite(parsed);
           setActiveTab("preview");
+        } else if (generationType === "react-vite") {
+          const parsed = ReactProjectSchema.parse(JSON.parse(jsonText)) as GeneratedReactProject;
+          setReactProject(parsed);
+          setActiveTab("app");
         } else {
           const parsed = WebsiteSchema.parse(JSON.parse(jsonText)) as GeneratedWebsite;
           setWebsite(parsed);
@@ -328,6 +432,31 @@ export function SiteGenerator() {
             `type TestimonialSection = { type: "testimonial"; quote: string; author: string };\n` +
             `type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };\n` +
             `export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };`
+          : generationType === "react-vite"
+          ? `{
+  "title": "Project Title",
+  "description": "Brief description",
+  "theme": "green" | "light" | "dark",
+  "framework": "react-vite-typescript",
+  "files": {
+    "packageJson": "Complete package.json",
+    "viteConfig": "Vite configuration",
+    "tsConfig": "TypeScript configuration",
+    "tailwindConfig": "Tailwind configuration",
+    "postcssConfig": "PostCSS configuration",
+    "indexHtml": "HTML entry point",
+    "mainTsx": "React entry point",
+    "appTsx": "Main App component",
+    "appCss": "Global CSS",
+    "components": { "ComponentName.tsx": "React component code" },
+    "pages": { "PageName.tsx": "Page component code" },
+    "lib": { "utils.ts": "Utility functions" }
+  },
+  "features": ["responsive", "interactive", "accessible"],
+  "responsive": true,
+  "interactive": true,
+  "shadcnComponents": ["button", "card", "input"]
+}`
           : `{
   "title": "Website Title",
   "description": "Brief description",
@@ -353,12 +482,16 @@ export function SiteGenerator() {
             model,
             schemaDescription: schemaDesc,
             badText: jsonText,
-            maxOutputTokens: generationType === "fullstack" ? 4000 : 800,
+            maxOutputTokens: generationType === "react-vite" ? 6000 : generationType === "fullstack" ? 4000 : 800,
           });
           if (generationType === "preview") {
             const parsed = SiteSchema.parse(JSON.parse(fixed)) as GeneratedSite;
             setSite(parsed);
             setActiveTab("preview");
+          } else if (generationType === "react-vite") {
+            const parsed = ReactProjectSchema.parse(JSON.parse(fixed)) as GeneratedReactProject;
+            setReactProject(parsed);
+            setActiveTab("app");
           } else {
             const parsed = WebsiteSchema.parse(JSON.parse(fixed)) as GeneratedWebsite;
             setWebsite(parsed);
@@ -499,11 +632,19 @@ export function SiteGenerator() {
                             Full Stack Website
                           </div>
                         </SelectItem>
+                        <SelectItem value="react-vite">
+                          <div className="flex items-center gap-2">
+                            <Code className="w-4 h-4" />
+                            React + Vite + TypeScript
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
                       {generationType === "preview" 
                         ? "Fast preview with basic layout" 
+                        : generationType === "react-vite"
+                        ? "Complete React project with Vite, TypeScript, and shadcn-ui"
                         : "Complete website with HTML, CSS, JS, and Node.js"}
                     </p>
                   </div>
@@ -534,14 +675,14 @@ export function SiteGenerator() {
                       aria-label="Generate website"
                       className="flex-1"
                     >
-                      {loading ? "Generating..." : `Generate ${generationType === "preview" ? "Preview" : "Full Website"}`}
+                      {loading ? "Generating..." : `Generate ${generationType === "preview" ? "Preview" : generationType === "react-vite" ? "React Project" : "Full Website"}`}
                     </Button>
-                    {website && (
+                    {(website || reactProject) && (
                       <Button
                         variant="outline"
                         size="lg"
-                        onClick={downloadWebsite}
-                        aria-label="Download website files"
+                        onClick={website ? downloadWebsite : downloadReactProject}
+                        aria-label="Download files"
                       >
                         <Download className="w-4 h-4" />
                       </Button>
@@ -564,19 +705,31 @@ export function SiteGenerator() {
                 </CardContent>
               </Card>
 
-              {website && (
+                            {(website || reactProject) && (
                 <Card>
                   <CardHeader>
                     <CardTitle>Generated Features</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
-                      {website.features.map((feature, idx) => (
+                      {(website || reactProject)?.features.map((feature, idx) => (
                         <Badge key={idx} variant="secondary">
                           {feature}
                         </Badge>
                       ))}
                     </div>
+                    {reactProject && (
+                      <div className="mt-4">
+                        <h4 className="text-sm font-medium mb-2">shadcn-ui Components:</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {reactProject.shadcnComponents.map((component, idx) => (
+                            <Badge key={idx} variant="outline">
+                              {component}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -592,7 +745,7 @@ export function SiteGenerator() {
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="size-6 rounded" style={{ backgroundImage: "var(--gradient-primary)" }} />
                   <span className="font-medium truncate">
-                    {site?.title || website?.title || "Preview"}
+                    {site?.title || website?.title || reactProject?.title || "Preview"}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -711,6 +864,113 @@ export function SiteGenerator() {
                       </div>
                     </TabsContent>
                   </Tabs>
+                ) : reactProject ? (
+                  <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
+                    <div className="border-b px-4 py-2">
+                      <TabsList className="grid w-full grid-cols-6">
+                        <TabsTrigger value="preview">Preview</TabsTrigger>
+                        <TabsTrigger value="app">App.tsx</TabsTrigger>
+                        <TabsTrigger value="components">Components</TabsTrigger>
+                        <TabsTrigger value="config">Config</TabsTrigger>
+                        <TabsTrigger value="package">Package</TabsTrigger>
+                        <TabsTrigger value="files">Files</TabsTrigger>
+                      </TabsList>
+                    </div>
+                    
+                    <TabsContent value="preview" className="p-4 sm:p-6 h-full">
+                      <div className="mx-auto flex justify-center">
+                        <div className={`surface-glass ${frameWidthClass} min-h-[480px] overflow-hidden`}>
+                          <div className="bg-background p-6">
+                            <h3 className="text-lg font-semibold mb-4">React Project Preview</h3>
+                            <p className="text-sm text-muted-foreground mb-4">
+                              This is a React project with Vite, TypeScript, and shadcn-ui. Download the files to run it locally.
+                            </p>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Code className="w-4 h-4 text-primary" />
+                                <span>Vite + React + TypeScript</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Palette className="w-4 h-4 text-primary" />
+                                <span>shadcn-ui + Tailwind CSS</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Server className="w-4 h-4 text-primary" />
+                                <span>Production Ready</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="app" className="p-4 h-full">
+                      <pre className="bg-muted p-4 rounded-lg overflow-auto text-sm h-full">
+                        <code>{reactProject.files.appTsx}</code>
+                      </pre>
+                    </TabsContent>
+                    
+                    <TabsContent value="components" className="p-4 h-full">
+                      <div className="space-y-4">
+                        {Object.entries(reactProject.files.components).map(([name, content]) => (
+                          <details key={name} className="rounded-lg border bg-card">
+                            <summary className="cursor-pointer px-3 py-2 text-sm font-medium">{name}</summary>
+                            <pre className="bg-muted m-3 p-3 rounded-lg overflow-auto text-xs max-h-80">
+                              <code>{content}</code>
+                            </pre>
+                          </details>
+                        ))}
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="config" className="p-4 h-full">
+                      <div className="space-y-4">
+                        <details className="rounded-lg border bg-card">
+                          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">vite.config.ts</summary>
+                          <pre className="bg-muted m-3 p-3 rounded-lg overflow-auto text-xs max-h-80">
+                            <code>{reactProject.files.viteConfig}</code>
+                          </pre>
+                        </details>
+                        <details className="rounded-lg border bg-card">
+                          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">tailwind.config.js</summary>
+                          <pre className="bg-muted m-3 p-3 rounded-lg overflow-auto text-xs max-h-80">
+                            <code>{reactProject.files.tailwindConfig}</code>
+                          </pre>
+                        </details>
+                        <details className="rounded-lg border bg-card">
+                          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">tsconfig.json</summary>
+                          <pre className="bg-muted m-3 p-3 rounded-lg overflow-auto text-xs max-h-80">
+                            <code>{reactProject.files.tsConfig}</code>
+                          </pre>
+                        </details>
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="package" className="p-4 h-full">
+                      <pre className="bg-muted p-4 rounded-lg overflow-auto text-sm h-full">
+                        <code>{reactProject.files.packageJson}</code>
+                      </pre>
+                    </TabsContent>
+                    
+                    <TabsContent value="files" className="p-4 h-full">
+                      <div className="space-y-3">
+                        {reactProject.additionalFiles ? (
+                          <div className="space-y-2">
+                            {Object.entries(reactProject.additionalFiles).map(([path, content]) => (
+                              <details key={path} className="rounded-lg border bg-card">
+                                <summary className="cursor-pointer px-3 py-2 text-sm font-medium">{path}</summary>
+                                <pre className="bg-muted m-3 p-3 rounded-lg overflow-auto text-xs max-h-80">
+                                  <code>{content}</code>
+                                </pre>
+                              </details>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No additional files generated.</p>
+                        )}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 ) : (
                   <div className="p-4 sm:p-6">
                     <div className="mx-auto flex justify-center">
@@ -727,11 +987,11 @@ export function SiteGenerator() {
                             </div>
                           )}
                           {!loading && site && <PageRenderer site={site} />}
-                          {!loading && !site && !website && (
+                          {!loading && !site && !website && !reactProject && (
                             <div className="p-10 text-center">
                               <h2 className="text-xl font-semibold">Your live preview</h2>
                               <p className="mt-2 text-sm text-muted-foreground">
-                                Generate a website to see it here. Choose between quick preview or full-stack generation.
+                                Generate a website to see it here. Choose between quick preview, full-stack generation, or React project.
                               </p>
                             </div>
                           )}
