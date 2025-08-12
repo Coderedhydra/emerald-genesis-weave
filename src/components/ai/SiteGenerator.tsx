@@ -218,8 +218,8 @@ export function SiteGenerator() {
 
   const fullstackSystemPrompt = useMemo(
     () =>
-      `Generate a complete website with HTML, CSS, JS, and Node.js backend. Return JSON:\n` +
-      `{\n  "title": "Website Title",\n  "description": "Brief description",\n  "theme": "green",\n  "files": {\n    "html": "Complete HTML with semantic structure",\n    "css": "Modern CSS with responsive design",\n    "js": "Interactive JavaScript",\n    "nodejs": {\n      "packageJson": "package.json with dependencies",\n      "serverJs": "Express.js server",\n      "routes": { "routeName": "route handler code" }\n    }\n  },\n  "features": ["responsive", "interactive"],\n  "responsive": true,\n  "interactive": true\n}`,
+      `Generate a simple website. Return JSON:\n` +
+      `{\n  "title": "Website Title",\n  "description": "Brief description",\n  "theme": "green",\n  "files": {\n    "html": "Basic HTML",\n    "css": "Simple CSS",\n    "js": "Basic JS",\n    "nodejs": {\n      "packageJson": "Basic package.json",\n      "serverJs": "Simple Express server",\n      "routes": { "api": "Basic route" }\n    }\n  },\n  "features": ["responsive"],\n  "responsive": true,\n  "interactive": true\n}`,
     []
   );
 
@@ -345,7 +345,9 @@ export function SiteGenerator() {
         : generationType === "react-vite" 
         ? reactSystemPrompt 
         : fullstackSystemPrompt;
-      const userInstruction = `${prompt}`;
+      const userInstruction = generationType === "fullstack" 
+        ? `Create a simple ${prompt}. Keep it basic and minimal.`
+        : `${prompt}`;
 
       // Try different models if one is overloaded
       const modelsToTry = [
@@ -384,7 +386,7 @@ export function SiteGenerator() {
                   ],
                   generationConfig: {
                     temperature: 0.7,
-                    maxOutputTokens: generationType === "react-vite" ? 8000 : generationType === "fullstack" ? 6000 : 800,
+                    maxOutputTokens: generationType === "react-vite" ? 8000 : generationType === "fullstack" ? 4000 : 800,
                   },
                 }),
               }
@@ -435,7 +437,7 @@ export function SiteGenerator() {
                 ? `{"title": "Title", "theme": "green", "sections": [{"type": "hero", "headline": "Headline", "subheadline": "Subtitle", "ctaLabel": "CTA"}, {"type": "features", "title": "Features", "items": [{"title": "Feature", "description": "Desc", "icon": "✨"}]}, {"type": "cta", "headline": "CTA", "ctaLabel": "Button"}]}`
                 : generationType === "react-vite"
                 ? `{"title": "Title", "description": "Desc", "theme": "green", "framework": "react-vite-typescript", "files": {"packageJson": "pkg", "viteConfig": "vite", "tsConfig": "ts", "tailwindConfig": "tw", "postcssConfig": "pc", "indexHtml": "html", "mainTsx": "main", "appTsx": "app", "appCss": "css", "components": {"comp.tsx": "code"}, "pages": {"page.tsx": "code"}, "lib": {"utils.ts": "code"}}, "features": ["responsive"], "responsive": true, "interactive": true, "shadcnComponents": ["button"]}`
-                : `{"title": "Title", "description": "Desc", "theme": "green", "files": {"html": "html", "css": "css", "js": "js", "nodejs": {"packageJson": "pkg", "serverJs": "server", "routes": {"route": "code"}}}, "features": ["responsive"], "responsive": true, "interactive": true}`;
+                : `{"title": "Title", "description": "Desc", "theme": "green", "files": {"html": "html", "css": "css", "js": "js", "nodejs": {"packageJson": "pkg", "serverJs": "server", "routes": {"api": "code"}}}, "features": ["responsive"], "responsive": true, "interactive": true}`;
 
               try {
                 const fixed = await attemptAutoFix({
@@ -443,7 +445,7 @@ export function SiteGenerator() {
                   model: currentModel,
                   schemaDescription: schemaDesc,
                   badText: jsonText,
-                  maxOutputTokens: generationType === "react-vite" ? 4000 : generationType === "fullstack" ? 3000 : 600,
+                  maxOutputTokens: generationType === "react-vite" ? 4000 : generationType === "fullstack" ? 2000 : 600,
                 });
                 if (generationType === "preview") {
                   const parsed = SiteSchema.parse(JSON.parse(fixed)) as GeneratedSite;
@@ -496,14 +498,14 @@ export function SiteGenerator() {
         ? `{"title": "Title", "theme": "green", "sections": [{"type": "hero", "headline": "Headline", "subheadline": "Subtitle", "ctaLabel": "CTA"}, {"type": "features", "title": "Features", "items": [{"title": "Feature", "description": "Desc", "icon": "✨"}]}, {"type": "cta", "headline": "CTA", "ctaLabel": "Button"}]}`
         : generationType === "react-vite"
         ? `{"title": "Title", "description": "Desc", "theme": "green", "framework": "react-vite-typescript", "files": {"packageJson": "pkg", "viteConfig": "vite", "tsConfig": "ts", "tailwindConfig": "tw", "postcssConfig": "pc", "indexHtml": "html", "mainTsx": "main", "appTsx": "app", "appCss": "css", "components": {"comp.tsx": "code"}, "pages": {"page.tsx": "code"}, "lib": {"utils.ts": "code"}}, "features": ["responsive"], "responsive": true, "interactive": true, "shadcnComponents": ["button"]}`
-        : `{"title": "Title", "description": "Desc", "theme": "green", "files": {"html": "html", "css": "css", "js": "js", "nodejs": {"packageJson": "pkg", "serverJs": "server", "routes": {"route": "code"}}}, "features": ["responsive"], "responsive": true, "interactive": true}`;
+        : `{"title": "Title", "description": "Desc", "theme": "green", "files": {"html": "html", "css": "css", "js": "js", "nodejs": {"packageJson": "pkg", "serverJs": "server", "routes": {"api": "code"}}}, "features": ["responsive"], "responsive": true, "interactive": true}`;
 
       const fixed = await attemptAutoFix({
         apiKey,
         model,
         schemaDescription: schemaDesc,
         badText: lastRawText,
-        maxOutputTokens: generationType === "react-vite" ? 4000 : generationType === "fullstack" ? 3000 : 600,
+        maxOutputTokens: generationType === "react-vite" ? 4000 : generationType === "fullstack" ? 2000 : 600,
       });
       if (generationType === "preview") {
         const parsed = SiteSchema.parse(JSON.parse(fixed)) as GeneratedSite;
