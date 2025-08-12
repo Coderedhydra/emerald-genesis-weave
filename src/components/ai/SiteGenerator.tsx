@@ -79,18 +79,51 @@ function cleanToJson(text: string) {
     .trim();
 }
 
+function extractJsonLike(raw: string): string {
+  let text = cleanToJson(raw)
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[`]/g, '"');
+  const braceIndex = text.indexOf("{");
+  const bracketIndex = text.indexOf("[");
+  const start = braceIndex === -1 ? bracketIndex : bracketIndex === -1 ? braceIndex : Math.min(braceIndex, bracketIndex);
+  if (start === -1) return text;
+  let depth = 0;
+  let inString = false;
+  let stringQuote: string | null = null;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (!escaped && ch === stringQuote) {
+        inString = false;
+        stringQuote = null;
+      }
+      escaped = !escaped && ch === '\\';
+    } else {
+      if (ch === '"' || ch === "'") {
+        inString = true;
+        stringQuote = ch;
+        escaped = false;
+      } else if (ch === '{' || ch === '[') {
+        depth++;
+      } else if (ch === '}' || ch === ']') {
+        depth--;
+        if (depth === 0) {
+          return text.slice(start, i + 1);
+        }
+      }
+    }
+  }
+  return text.slice(start);
+}
+
 function robustJsonParse(raw: string): any {
-  let text = cleanToJson(raw);
+  let text = extractJsonLike(raw);
   // Try direct parse first
   try {
     return JSON.parse(text);
   } catch {}
-  // Extract between first { and last }
-  const first = text.indexOf("{");
-  const last = text.lastIndexOf("}");
-  if (first !== -1 && last !== -1 && last > first) {
-    text = text.slice(first, last + 1);
-  }
   // Remove trailing commas before } or ]
   text = text.replace(/,\s*([}\]])/g, "$1");
   try {
@@ -189,7 +222,7 @@ export function SiteGenerator() {
               { role: "user", parts: [{ text: userInstruction }] },
             ],
             generationConfig: {
-              temperature: 0.6,
+              temperature: 0.2,
               maxOutputTokens: 1600,
             },
           }),
