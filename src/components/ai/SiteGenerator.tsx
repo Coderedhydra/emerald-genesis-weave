@@ -183,13 +183,9 @@ export function SiteGenerator() {
     if (storedKey) setApiKey(storedKey);
     const storedModel = localStorage.getItem("gemini_model");
     if (storedModel) setModel(storedModel);
-    const storedViewport = localStorage.getItem("preview_viewport") as
-      | Viewport
-      | null;
+    const storedViewport = localStorage.getItem("preview_viewport") as Viewport | null;
     if (storedViewport) setViewport(storedViewport);
-    const storedType = localStorage.getItem("generation_type") as
-      | GenerationType
-      | null;
+    const storedType = localStorage.getItem("generation_type") as GenerationType | null;
     if (storedType) setGenerationType(storedType);
   }, []);
 
@@ -575,185 +571,117 @@ export function SiteGenerator() {
     <section className="py-6">
       <div className="section-container">
         <ResizablePanelGroup direction="horizontal" className="rounded-lg border">
-          <ResizablePanel defaultSize={38} minSize={28} className="bg-card">
-            <div className="h-full overflow-auto p-4 sm:p-6 space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Globe className="w-5 h-5" />
-                    Project Configuration
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="apiKey">Gemini API key (local only)</Label>
-                    <Input
-                      id="apiKey"
-                      type="password"
-                      placeholder="Enter your key"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      aria-label="Gemini API key"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Stored in your browser. For production, add your own proxy.
-                    </p>
-                  </div>
+          <ResizablePanel defaultSize={40} minSize={30} className="bg-card">
+            <div className="h-full overflow-auto p-6 space-y-6">
+              {/* API Key */}
+              <div className="space-y-2">
+                <Label htmlFor="apiKey">Gemini API Key</Label>
+                <Input
+                  id="apiKey"
+                  type="password"
+                  placeholder="Enter your key"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                />
+              </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="model">Model</Label>
-                    <Input
-                      id="model"
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      aria-label="Model name"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Example: gemini-2.5-flash (default), gemini-2.0-flash
-                    </p>
-                  </div>
+              {/* Generation Type */}
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={generationType} onValueChange={(value: GenerationType) => setGenerationType(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="preview">Quick Preview</SelectItem>
+                    <SelectItem value="fullstack">Full Stack</SelectItem>
+                    <SelectItem value="react-vite">React Project</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="generationType">Generation Type</Label>
-                    <Select value={generationType} onValueChange={(value: GenerationType) => setGenerationType(value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="preview">
-                          <div className="flex items-center gap-2">
-                            <Globe className="w-4 h-4" />
-                            Quick Preview
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="fullstack">
-                          <div className="flex items-center gap-2">
-                            <Server className="w-4 h-4" />
-                            Full Stack Website
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="react-vite">
-                          <div className="flex items-center gap-2">
-                            <Code className="w-4 h-4" />
-                            React + Vite + TypeScript
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      {generationType === "preview" 
-                        ? "Fast preview with basic layout" 
-                        : generationType === "react-vite"
-                        ? "Complete React project with Vite, TypeScript, and shadcn-ui"
-                        : "Complete website with HTML, CSS, JS, and Node.js"}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Prompt */}
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  rows={6}
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="Describe what you want to build..."
+                />
+              </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Code className="w-5 h-5" />
-                    Website Description
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Textarea
-                    rows={8}
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Describe your website: purpose, features, functionality, design preferences..."
-                    aria-label="Website description"
-                  />
-                  <div className="flex gap-3">
-                    <Button
-                      variant="hero"
-                      size="lg"
-                      onClick={handleGenerate}
-                      disabled={loading}
-                      aria-label="Generate website"
-                      className="flex-1"
-                    >
-                      {loading ? "Generating..." : `Generate ${generationType === "preview" ? "Preview" : generationType === "react-vite" ? "React Project" : "Full Website"}`}
-                    </Button>
-                    {(website || reactProject) && (
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        onClick={website ? downloadWebsite : downloadReactProject}
-                        aria-label="Download files"
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    )}
-                    {lastRawText && (
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        onClick={handleManualFix}
-                        disabled={fixing}
-                        aria-label="Attempt auto-fix"
-                      >
-                        {fixing ? "Fixing..." : "Auto Fix"}
-                      </Button>
-                    )}
-                  </div>
-                  {error && (
-                    <p className="text-sm text-destructive">{error}</p>
-                  )}
-                </CardContent>
-              </Card>
+              {/* Generate Button */}
+              <Button
+                variant="hero"
+                size="lg"
+                onClick={handleGenerate}
+                disabled={loading}
+                className="w-full"
+              >
+                {loading ? "Generating..." : "Generate"}
+              </Button>
 
-                            {(website || reactProject) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Generated Features</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {(website || reactProject)?.features.map((feature, idx) => (
-                        <Badge key={idx} variant="secondary">
-                          {feature}
-                        </Badge>
-                      ))}
-                    </div>
-                    {reactProject && (
-                      <div className="mt-4">
-                        <h4 className="text-sm font-medium mb-2">shadcn-ui Components:</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {reactProject.shadcnComponents.map((component, idx) => (
-                            <Badge key={idx} variant="outline">
-                              {component}
-                            </Badge>
-                          ))}
-                        </div>
+              {/* Download Button */}
+              {(website || reactProject) && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={website ? downloadWebsite : downloadReactProject}
+                  className="w-full"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </Button>
+              )}
+
+              {/* Error */}
+              {error && (
+                <p className="text-sm text-destructive">{error}</p>
+              )}
+
+              {/* Features */}
+              {(website || reactProject) && (
+                <div className="space-y-2">
+                  <Label>Features</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {(website || reactProject)?.features.map((feature, idx) => (
+                      <Badge key={idx} variant="secondary" className="text-xs">
+                        {feature}
+                      </Badge>
+                    ))}
+                  </div>
+                  {reactProject && (
+                    <div className="mt-2">
+                      <Label className="text-xs">shadcn-ui:</Label>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {reactProject.shadcnComponents.map((component, idx) => (
+                          <Badge key={idx} variant="outline" className="text-xs">
+                            {component}
+                          </Badge>
+                        ))}
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </ResizablePanel>
 
           <ResizableHandle />
 
-          <ResizablePanel defaultSize={62} minSize={40} className="bg-muted/20">
+          <ResizablePanel defaultSize={60} minSize={40} className="bg-muted/20">
             <div className="h-full flex flex-col">
-              {/* Preview top bar */}
-              <div className="border-b px-3 sm:px-4 h-12 flex items-center justify-between gap-3 bg-background/80">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="size-6 rounded" style={{ backgroundImage: "var(--gradient-primary)" }} />
-                  <span className="font-medium truncate">
-                    {site?.title || website?.title || reactProject?.title || "Preview"}
-                  </span>
-                </div>
+              {/* Header */}
+              <div className="border-b px-4 h-12 flex items-center justify-between bg-background">
+                <span className="font-medium">
+                  {site?.title || website?.title || reactProject?.title || "Preview"}
+                </span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant={viewport === "mobile" ? "secondary" : "outline"}
                     size="sm"
                     onClick={() => setViewport("mobile")}
-                    aria-label="Mobile preview"
                   >
                     <Smartphone className="w-4 h-4" />
                   </Button>
@@ -761,7 +689,6 @@ export function SiteGenerator() {
                     variant={viewport === "tablet" ? "secondary" : "outline"}
                     size="sm"
                     onClick={() => setViewport("tablet")}
-                    aria-label="Tablet preview"
                   >
                     <Tablet className="w-4 h-4" />
                   </Button>
@@ -769,23 +696,13 @@ export function SiteGenerator() {
                     variant={viewport === "desktop" ? "secondary" : "outline"}
                     size="sm"
                     onClick={() => setViewport("desktop")}
-                    aria-label="Desktop preview"
                   >
                     <Monitor className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleGenerate}
-                    disabled={loading}
-                    aria-label="Regenerate"
-                  >
-                    {loading ? "…" : "Regenerate"}
                   </Button>
                 </div>
               </div>
 
-              {/* Content area */}
+              {/* Content */}
               <div className="flex-1 overflow-auto">
                 {website ? (
                   <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
@@ -794,14 +711,14 @@ export function SiteGenerator() {
                         <TabsTrigger value="preview">Preview</TabsTrigger>
                         <TabsTrigger value="html">HTML</TabsTrigger>
                         <TabsTrigger value="css">CSS</TabsTrigger>
-                        <TabsTrigger value="js">JavaScript</TabsTrigger>
+                        <TabsTrigger value="js">JS</TabsTrigger>
                         <TabsTrigger value="files">Files</TabsTrigger>
                       </TabsList>
                     </div>
                     
-                    <TabsContent value="preview" className="p-4 sm:p-6 h-full">
+                    <TabsContent value="preview" className="p-4 h-full">
                       <div className="mx-auto flex justify-center">
-                        <div className={`surface-glass ${frameWidthClass} min-h-[480px] overflow-hidden`}>
+                        <div className={`${frameWidthClass} min-h-[480px] overflow-hidden border rounded-lg`}>
                           <iframe
                             srcDoc={`
                               <!DOCTYPE html>
@@ -843,8 +760,8 @@ export function SiteGenerator() {
                     <TabsContent value="files" className="p-4 h-full">
                       <div className="space-y-3">
                         {website.framework && (
-                          <div className="text-sm text-muted-foreground">
-                            <span className="font-medium text-foreground">Framework:</span> {website.framework}
+                          <div className="text-sm">
+                            <span className="font-medium">Framework:</span> {website.framework}
                           </div>
                         )}
                         {website.additionalFiles ? (
@@ -859,7 +776,7 @@ export function SiteGenerator() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-muted-foreground">No additional files generated.</p>
+                          <p className="text-sm text-muted-foreground">No additional files.</p>
                         )}
                       </div>
                     </TabsContent>
@@ -877,27 +794,21 @@ export function SiteGenerator() {
                       </TabsList>
                     </div>
                     
-                    <TabsContent value="preview" className="p-4 sm:p-6 h-full">
+                    <TabsContent value="preview" className="p-4 h-full">
                       <div className="mx-auto flex justify-center">
-                        <div className={`surface-glass ${frameWidthClass} min-h-[480px] overflow-hidden`}>
-                          <div className="bg-background p-6">
-                            <h3 className="text-lg font-semibold mb-4">React Project Preview</h3>
-                            <p className="text-sm text-muted-foreground mb-4">
-                              This is a React project with Vite, TypeScript, and shadcn-ui. Download the files to run it locally.
-                            </p>
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2 text-sm">
-                                <Code className="w-4 h-4 text-primary" />
-                                <span>Vite + React + TypeScript</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-sm">
-                                <Palette className="w-4 h-4 text-primary" />
-                                <span>shadcn-ui + Tailwind CSS</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-sm">
-                                <Server className="w-4 h-4 text-primary" />
-                                <span>Production Ready</span>
-                              </div>
+                        <div className={`${frameWidthClass} min-h-[480px] overflow-hidden border rounded-lg bg-background p-6`}>
+                          <h3 className="text-lg font-semibold mb-4">React Project</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Vite + React + TypeScript + shadcn-ui
+                          </p>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Code className="w-4 h-4 text-primary" />
+                              <span>Ready to download and run</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                              <Palette className="w-4 h-4 text-primary" />
+                              <span>Includes all dependencies</span>
                             </div>
                           </div>
                         </div>
@@ -966,36 +877,34 @@ export function SiteGenerator() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-muted-foreground">No additional files generated.</p>
+                          <p className="text-sm text-muted-foreground">No additional files.</p>
                         )}
                       </div>
                     </TabsContent>
                   </Tabs>
                 ) : (
-                  <div className="p-4 sm:p-6">
+                  <div className="p-8">
                     <div className="mx-auto flex justify-center">
-                      <div className={`surface-glass ${frameWidthClass} min-h-[480px] overflow-hidden`}> 
-                        <div className="bg-background">
-                          {loading && (
-                            <div className="p-6 space-y-4">
-                              <Skeleton className="h-8 w-1/3" />
-                              <Skeleton className="h-4 w-2/3" />
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-                                <Skeleton className="h-24" />
-                                <Skeleton className="h-24" />
-                              </div>
+                      <div className={`${frameWidthClass} min-h-[480px] overflow-hidden border rounded-lg bg-background p-8`}> 
+                        {loading ? (
+                          <div className="space-y-4">
+                            <Skeleton className="h-8 w-1/3" />
+                            <Skeleton className="h-4 w-2/3" />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+                              <Skeleton className="h-24" />
+                              <Skeleton className="h-24" />
                             </div>
-                          )}
-                          {!loading && site && <PageRenderer site={site} />}
-                          {!loading && !site && !website && !reactProject && (
-                            <div className="p-10 text-center">
-                              <h2 className="text-xl font-semibold">Your live preview</h2>
-                              <p className="mt-2 text-sm text-muted-foreground">
-                                Generate a website to see it here. Choose between quick preview, full-stack generation, or React project.
-                              </p>
-                            </div>
-                          )}
-                        </div>
+                          </div>
+                        ) : site ? (
+                          <PageRenderer site={site} />
+                        ) : (
+                          <div className="text-center">
+                            <h2 className="text-xl font-semibold">Preview</h2>
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              Generate something to see it here.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
