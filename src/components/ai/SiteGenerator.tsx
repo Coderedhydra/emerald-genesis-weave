@@ -349,18 +349,20 @@ export function SiteGenerator() {
   };
 
   async function handleGenerate() {
-    setLoading(true);
-    setError(null);
-    setSite(null);
-    setWebsite(null);
-    setReactProject(null);
-    setLastRawText(null);
-    
     try {
+      setLoading(true);
+      setError(null);
+      setSite(null);
+      setWebsite(null);
+      setReactProject(null);
+      setLastRawText(null);
+      
       if (!apiKey) {
-        throw new Error(
-          "Missing API key. For security, enter your Gemini API key locally."
-        );
+        throw new Error("Missing API key. For security, enter your Gemini API key locally.");
+      }
+
+      if (!prompt.trim()) {
+        throw new Error("Please enter a description for what you want to generate.");
       }
 
       const systemPrompt = generationType === "preview" 
@@ -518,6 +520,31 @@ export function SiteGenerator() {
           `type TestimonialSection = { type: "testimonial"; quote: string; author: string };\n` +
           `type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };\n` +
           `export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };`
+        : generationType === "react-vite"
+        ? `{
+  "title": "Project Title",
+  "description": "Brief description",
+  "theme": "green" | "light" | "dark",
+  "framework": "react-vite-typescript",
+  "files": {
+    "packageJson": "Complete package.json",
+    "viteConfig": "Vite configuration",
+    "tsConfig": "TypeScript configuration",
+    "tailwindConfig": "Tailwind configuration",
+    "postcssConfig": "PostCSS configuration",
+    "indexHtml": "HTML entry point",
+    "mainTsx": "React entry point",
+    "appTsx": "Main App component",
+    "appCss": "Global CSS",
+    "components": { "ComponentName.tsx": "React component code" },
+    "pages": { "PageName.tsx": "Page component code" },
+    "lib": { "utils.ts": "Utility functions" }
+  },
+  "features": ["responsive", "interactive", "accessible"],
+  "responsive": true,
+  "interactive": true,
+  "shadcnComponents": ["button", "card", "input"]
+}`
         : `{
   "title": "Website Title",
   "description": "Brief description",
@@ -542,12 +569,16 @@ export function SiteGenerator() {
         model,
         schemaDescription: schemaDesc,
         badText: lastRawText,
-        maxOutputTokens: generationType === "fullstack" ? 4000 : 800,
+        maxOutputTokens: generationType === "react-vite" ? 6000 : generationType === "fullstack" ? 4000 : 800,
       });
       if (generationType === "preview") {
         const parsed = SiteSchema.parse(JSON.parse(fixed)) as GeneratedSite;
         setSite(parsed);
         setActiveTab("preview");
+      } else if (generationType === "react-vite") {
+        const parsed = ReactProjectSchema.parse(JSON.parse(fixed)) as GeneratedReactProject;
+        setReactProject(parsed);
+        setActiveTab("app");
       } else {
         const parsed = WebsiteSchema.parse(JSON.parse(fixed)) as GeneratedWebsite;
         setWebsite(parsed);
@@ -570,6 +601,11 @@ export function SiteGenerator() {
   return (
     <section className="py-6">
       <div className="section-container">
+        {error && (
+          <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+            <p className="text-sm text-destructive">{error}</p>
+          </div>
+        )}
         <ResizablePanelGroup direction="horizontal" className="rounded-lg border">
           <ResizablePanel defaultSize={40} minSize={30} className="bg-card">
             <div className="h-full overflow-auto p-6 space-y-6">
@@ -613,9 +649,14 @@ export function SiteGenerator() {
 
               {/* Generate Button */}
               <Button
+                type="button"
                 variant="hero"
                 size="lg"
-                onClick={handleGenerate}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleGenerate();
+                }}
                 disabled={loading}
                 className="w-full"
               >
