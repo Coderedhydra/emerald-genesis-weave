@@ -211,53 +211,22 @@ export function SiteGenerator() {
 
   const previewSystemPrompt = useMemo(
     () =>
-      `You are an expert product designer and front-end architect. Generate only JSON, no prose. The JSON must conform to this TypeScript type without extra fields:\n\n` +
-      `type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };\n` +
-      `type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };\n` +
-      `type TestimonialSection = { type: "testimonial"; quote: string; author: string };\n` +
-      `type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };\n` +
-      `export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };\n\n` +
-      `Constraints:\n` +
-      `- title must be short and brandable\n` +
-      `- theme should be "green" by default\n` +
-      `- Provide EXACTLY one hero, one features section (3 items), optionally one testimonial, and one cta.\n` +
-      `- No markdown fences. Output pure JSON.`,
+      `Generate a website preview. Return JSON:\n` +
+      `{\n  "title": "Website Title",\n  "theme": "green",\n  "sections": [\n    { "type": "hero", "headline": "Main headline", "subheadline": "Subtitle", "ctaLabel": "Get Started" },\n    { "type": "features", "title": "Features", "items": [\n      { "title": "Feature 1", "description": "Description", "icon": "✨" },\n      { "title": "Feature 2", "description": "Description", "icon": "🚀" },\n      { "title": "Feature 3", "description": "Description", "icon": "💡" }\n    ]},\n    { "type": "cta", "headline": "Call to action", "ctaLabel": "Learn More" }\n  ]\n}`,
     []
   );
 
   const fullstackSystemPrompt = useMemo(
     () =>
-      `You are a full-stack web developer expert. Generate a complete website with HTML, CSS, JavaScript, and Node.js backend. Return only JSON without markdown fences.\n\n` +
-      `The JSON must conform to this structure:\n` +
-      `{\n  "title": "Website Title",\n  "description": "Brief description",\n  "theme": "green" | "light" | "dark",\n  "framework": "static|react|next|vue|svelte|astro" (optional),\n  "files": {\n    "html": "Complete HTML with semantic structure, meta tags, and accessibility",\n    "css": "Modern CSS with responsive design, animations, and green theme",\n    "js": "Interactive JavaScript with modern ES6+ features",\n    "nodejs": {\n      "packageJson": "Complete package.json with dependencies",\n      "serverJs": "Express.js server with routes and middleware",\n      "routes": { "routeName": "route handler code" }\n    }\n  },\n  "additionalFiles": { "path/filename": "file content" } (optional),\n  "features": ["responsive", "interactive", "accessible", "seo-optimized"],\n  "responsive": true,\n  "interactive": true\n}\n\n` +
-      `Requirements:\n` +
-      `- Use modern HTML5 semantic elements\n` +
-      `- Implement responsive CSS Grid/Flexbox\n` +
-      `- Add smooth animations and transitions\n` +
-      `- Include interactive JavaScript features\n` +
-      `- Create Node.js backend with Express\n` +
-      `- Add form handling and API endpoints\n` +
-      `- Ensure accessibility (ARIA labels, semantic HTML)\n` +
-      `- Optimize for SEO (meta tags, structured data)\n` +
-      `- Use green color scheme by default\n` +
-      `- Make it production-ready`,
+      `Generate a complete website with HTML, CSS, JS, and Node.js backend. Return JSON:\n` +
+      `{\n  "title": "Website Title",\n  "description": "Brief description",\n  "theme": "green",\n  "files": {\n    "html": "Complete HTML with semantic structure",\n    "css": "Modern CSS with responsive design",\n    "js": "Interactive JavaScript",\n    "nodejs": {\n      "packageJson": "package.json with dependencies",\n      "serverJs": "Express.js server",\n      "routes": { "routeName": "route handler code" }\n    }\n  },\n  "features": ["responsive", "interactive"],\n  "responsive": true,\n  "interactive": true\n}`,
     []
   );
 
   const reactSystemPrompt = useMemo(
     () =>
-      `You are an expert React/TypeScript developer. Generate a complete Vite + React + TypeScript project with shadcn-ui components. Return only JSON without markdown fences.\n\n` +
-      `The JSON must conform to this structure:\n` +
-      `{\n  "title": "Project Title",\n  "description": "Brief description",\n  "theme": "green" | "light" | "dark",\n  "framework": "react-vite-typescript",\n  "files": {\n    "packageJson": "Complete package.json with all dependencies including React, Vite, TypeScript, Tailwind, shadcn-ui",\n    "viteConfig": "Vite configuration with React plugin",\n    "tsConfig": "TypeScript configuration",\n    "tailwindConfig": "Tailwind CSS configuration with shadcn-ui",\n    "postcssConfig": "PostCSS configuration",\n    "indexHtml": "HTML entry point",\n    "mainTsx": "React entry point with providers",\n    "appTsx": "Main App component",\n    "appCss": "Global CSS with Tailwind imports",\n    "components": { "ComponentName.tsx": "React component code" },\n    "pages": { "PageName.tsx": "Page component code" },\n    "lib": { "utils.ts": "Utility functions" }\n  },\n  "additionalFiles": { "path/filename": "file content" } (optional),\n  "features": ["responsive", "interactive", "accessible", "seo-optimized"],\n  "responsive": true,\n  "interactive": true,\n  "shadcnComponents": ["button", "card", "input", "etc"]\n}\n\n` +
-      `Requirements:\n` +
-      `- Use Vite as build tool\n` +
-      `- Include TypeScript configuration\n` +
-      `- Set up Tailwind CSS with shadcn-ui\n` +
-      `- Create reusable React components\n` +
-      `- Use modern React patterns (hooks, functional components)\n` +
-      `- Include proper TypeScript types\n` +
-      `- Add shadcn-ui components as needed\n` +
-      `- Make it production-ready with proper imports and exports`,
+      `Generate a Vite+React+TypeScript project with shadcn-ui. Return JSON:\n` +
+      `{\n  "title": "Project Title",\n  "description": "Brief description",\n  "theme": "green",\n  "framework": "react-vite-typescript",\n  "files": {\n    "packageJson": "package.json with React, Vite, TypeScript, Tailwind, shadcn-ui",\n    "viteConfig": "vite.config.ts",\n    "tsConfig": "tsconfig.json",\n    "tailwindConfig": "tailwind.config.js",\n    "postcssConfig": "postcss.config.js",\n    "indexHtml": "index.html",\n    "mainTsx": "main.tsx",\n    "appTsx": "App.tsx",\n    "appCss": "app.css",\n    "components": { "Component.tsx": "component code" },\n    "pages": { "Page.tsx": "page code" },\n    "lib": { "utils.ts": "utilities" }\n  },\n  "features": ["responsive", "interactive"],\n  "responsive": true,\n  "interactive": true,\n  "shadcnComponents": ["button", "card", "input"]\n}`,
     []
   );
 
@@ -415,7 +384,7 @@ export function SiteGenerator() {
                   ],
                   generationConfig: {
                     temperature: 0.7,
-                    maxOutputTokens: generationType === "react-vite" ? 12000 : generationType === "fullstack" ? 8000 : 1200,
+                    maxOutputTokens: generationType === "react-vite" ? 8000 : generationType === "fullstack" ? 6000 : 800,
                   },
                 }),
               }
@@ -463,54 +432,10 @@ export function SiteGenerator() {
             } catch (parseErr: any) {
               // Attempt auto-fix once
               const schemaDesc = generationType === "preview"
-                ? `type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };\n` +
-                  `type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };\n` +
-                  `type TestimonialSection = { type: "testimonial"; quote: string; author: string };\n` +
-                  `type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };\n` +
-                  `export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };`
+                ? `{"title": "Title", "theme": "green", "sections": [{"type": "hero", "headline": "Headline", "subheadline": "Subtitle", "ctaLabel": "CTA"}, {"type": "features", "title": "Features", "items": [{"title": "Feature", "description": "Desc", "icon": "✨"}]}, {"type": "cta", "headline": "CTA", "ctaLabel": "Button"}]}`
                 : generationType === "react-vite"
-                ? `{
-  "title": "Project Title",
-  "description": "Brief description",
-  "theme": "green" | "light" | "dark",
-  "framework": "react-vite-typescript",
-  "files": {
-    "packageJson": "Complete package.json",
-    "viteConfig": "Vite configuration",
-    "tsConfig": "TypeScript configuration",
-    "tailwindConfig": "Tailwind configuration",
-    "postcssConfig": "PostCSS configuration",
-    "indexHtml": "HTML entry point",
-    "mainTsx": "React entry point",
-    "appTsx": "Main App component",
-    "appCss": "Global CSS",
-    "components": { "ComponentName.tsx": "React component code" },
-    "pages": { "PageName.tsx": "Page component code" },
-    "lib": { "utils.ts": "Utility functions" }
-  },
-  "features": ["responsive", "interactive", "accessible"],
-  "responsive": true,
-  "interactive": true,
-  "shadcnComponents": ["button", "card", "input"]
-}`
-                : `{
-  "title": "Website Title",
-  "description": "Brief description",
-  "theme": "green" | "light" | "dark",
-  "files": {
-    "html": "Complete HTML",
-    "css": "Modern CSS",
-    "js": "Interactive JavaScript",
-    "nodejs": {
-      "packageJson": "Complete package.json",
-      "serverJs": "Express.js server",
-      "routes": { "routeName": "route handler code" }
-    }
-  },
-  "features": ["responsive", "interactive", "accessible", "seo-optimized"],
-  "responsive": true,
-  "interactive": true
-}`;
+                ? `{"title": "Title", "description": "Desc", "theme": "green", "framework": "react-vite-typescript", "files": {"packageJson": "pkg", "viteConfig": "vite", "tsConfig": "ts", "tailwindConfig": "tw", "postcssConfig": "pc", "indexHtml": "html", "mainTsx": "main", "appTsx": "app", "appCss": "css", "components": {"comp.tsx": "code"}, "pages": {"page.tsx": "code"}, "lib": {"utils.ts": "code"}}, "features": ["responsive"], "responsive": true, "interactive": true, "shadcnComponents": ["button"]}`
+                : `{"title": "Title", "description": "Desc", "theme": "green", "files": {"html": "html", "css": "css", "js": "js", "nodejs": {"packageJson": "pkg", "serverJs": "server", "routes": {"route": "code"}}}, "features": ["responsive"], "responsive": true, "interactive": true}`;
 
               try {
                 const fixed = await attemptAutoFix({
@@ -518,7 +443,7 @@ export function SiteGenerator() {
                   model: currentModel,
                   schemaDescription: schemaDesc,
                   badText: jsonText,
-                  maxOutputTokens: generationType === "react-vite" ? 6000 : generationType === "fullstack" ? 4000 : 800,
+                  maxOutputTokens: generationType === "react-vite" ? 4000 : generationType === "fullstack" ? 3000 : 600,
                 });
                 if (generationType === "preview") {
                   const parsed = SiteSchema.parse(JSON.parse(fixed)) as GeneratedSite;
@@ -568,61 +493,17 @@ export function SiteGenerator() {
     setError(null);
     try {
       const schemaDesc = generationType === "preview"
-        ? `type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };\n` +
-          `type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };\n` +
-          `type TestimonialSection = { type: "testimonial"; quote: string; author: string };\n` +
-          `type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };\n` +
-          `export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };`
+        ? `{"title": "Title", "theme": "green", "sections": [{"type": "hero", "headline": "Headline", "subheadline": "Subtitle", "ctaLabel": "CTA"}, {"type": "features", "title": "Features", "items": [{"title": "Feature", "description": "Desc", "icon": "✨"}]}, {"type": "cta", "headline": "CTA", "ctaLabel": "Button"}]}`
         : generationType === "react-vite"
-        ? `{
-  "title": "Project Title",
-  "description": "Brief description",
-  "theme": "green" | "light" | "dark",
-  "framework": "react-vite-typescript",
-  "files": {
-    "packageJson": "Complete package.json",
-    "viteConfig": "Vite configuration",
-    "tsConfig": "TypeScript configuration",
-    "tailwindConfig": "Tailwind configuration",
-    "postcssConfig": "PostCSS configuration",
-    "indexHtml": "HTML entry point",
-    "mainTsx": "React entry point",
-    "appTsx": "Main App component",
-    "appCss": "Global CSS",
-    "components": { "ComponentName.tsx": "React component code" },
-    "pages": { "PageName.tsx": "Page component code" },
-    "lib": { "utils.ts": "Utility functions" }
-  },
-  "features": ["responsive", "interactive", "accessible"],
-  "responsive": true,
-  "interactive": true,
-  "shadcnComponents": ["button", "card", "input"]
-}`
-        : `{
-  "title": "Website Title",
-  "description": "Brief description",
-  "theme": "green" | "light" | "dark",
-  "files": {
-    "html": "Complete HTML",
-    "css": "Modern CSS",
-    "js": "Interactive JavaScript",
-    "nodejs": {
-      "packageJson": "Complete package.json",
-      "serverJs": "Express.js server",
-      "routes": { "routeName": "route handler code" }
-    }
-  },
-  "features": ["responsive", "interactive", "accessible", "seo-optimized"],
-  "responsive": true,
-  "interactive": true
-}`;
+        ? `{"title": "Title", "description": "Desc", "theme": "green", "framework": "react-vite-typescript", "files": {"packageJson": "pkg", "viteConfig": "vite", "tsConfig": "ts", "tailwindConfig": "tw", "postcssConfig": "pc", "indexHtml": "html", "mainTsx": "main", "appTsx": "app", "appCss": "css", "components": {"comp.tsx": "code"}, "pages": {"page.tsx": "code"}, "lib": {"utils.ts": "code"}}, "features": ["responsive"], "responsive": true, "interactive": true, "shadcnComponents": ["button"]}`
+        : `{"title": "Title", "description": "Desc", "theme": "green", "files": {"html": "html", "css": "css", "js": "js", "nodejs": {"packageJson": "pkg", "serverJs": "server", "routes": {"route": "code"}}}, "features": ["responsive"], "responsive": true, "interactive": true}`;
 
       const fixed = await attemptAutoFix({
         apiKey,
         model,
         schemaDescription: schemaDesc,
         badText: lastRawText,
-        maxOutputTokens: generationType === "react-vite" ? 6000 : generationType === "fullstack" ? 4000 : 800,
+        maxOutputTokens: generationType === "react-vite" ? 4000 : generationType === "fullstack" ? 3000 : 600,
       });
       if (generationType === "preview") {
         const parsed = SiteSchema.parse(JSON.parse(fixed)) as GeneratedSite;
