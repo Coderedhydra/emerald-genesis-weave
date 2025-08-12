@@ -13,7 +13,7 @@ import {
 import { PageRenderer } from "./PageRenderer";
 import type { GeneratedProject, ProjectPage, Section } from "@/types/site";
 import { z } from "zod";
-import { buildStandaloneHtml, filenameForSite } from "@/lib/exportSite";
+import { buildStandaloneHtml } from "@/lib/exportSite";
 import { buildProjectZip, buildMultiPageZip } from "@/lib/exportSite";
 
 const SectionSchema = z.discriminatedUnion("type", [
@@ -49,13 +49,22 @@ const SectionSchema = z.discriminatedUnion("type", [
 const ProjectSchema = z.object({
   siteName: z.string(),
   theme: z.enum(["green", "light", "dark"]).optional(),
-  pages: z.array(
-    z.object({
-      slug: z.string().regex(/^[a-z0-9-]+$/),
-      title: z.string(),
-      sections: z.array(SectionSchema).min(1),
-    })
-  ).min(1),
+  pages: z
+    .array(
+      z.object({
+        slug: z.string().regex(/^[a-z0-9-]+$/),
+        title: z.string(),
+        sections: z.array(SectionSchema).min(1),
+      })
+    )
+    .min(1),
+});
+
+// Fallback single-page shape for legacy generations
+const SingleSiteSchema = z.object({
+  title: z.string(),
+  theme: z.enum(["green", "light", "dark"]).optional(),
+  sections: z.array(SectionSchema).min(1),
 });
 
 const DEFAULT_MODEL = "gemini-2.5-flash"; // configurable
@@ -66,6 +75,27 @@ function cleanToJson(text: string) {
     .replace(/^```\n?/i, "")
     .replace(/\n?```$/i, "")
     .trim();
+}
+
+function robustJsonParse(raw: string): any {
+  let text = cleanToJson(raw);
+  // Try direct parse first
+  try {
+    return JSON.parse(text);
+  } catch {}
+  // Extract between first { and last }
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first !== -1 && last !== -1 && last > first) {
+    text = text.slice(first, last + 1);
+  }
+  // Remove trailing commas before } or ]
+  text = text.replace(/,\s*([}\]])/g, "$1");
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error("Model returned invalid JSON. Try simplifying the prompt or regenerating.");
+  }
 }
 
 type Viewport = "desktop" | "tablet" | "mobile";
@@ -172,13 +202,34 @@ export function SiteGenerator() {
         | undefined;
       if (!text) throw new Error("No content returned by model");
 
-      const jsonText = cleanToJson(text);
-      const parsed = ProjectSchema.parse(JSON.parse(jsonText)) as GeneratedProject;
-      setProject(parsed);
-      setActivePageSlug(parsed.pages[0]?.slug || null);
+      const parsedRaw = robustJsonParse(text);
+      // Try multi-page first
+      const multi = ProjectSchema.safeParse(parsedRaw);
+      if (multi.success) {
+        const proj = multi.data as GeneratedProject;
+        setProject(proj);
+        setActivePageSlug(proj.pages[0]?.slug || null);
+      } else {
+        // Fallback to single-page and wrap into a project
+        const single = SingleSiteSchema.safeParse(parsedRaw);
+        if (single.success) {
+          const s = single.data;
+          const wrapped: GeneratedProject = {
+            siteName: s.title,
+            theme: s.theme,
+            pages: [
+              { slug: "index", title: s.title, sections: s.sections as Section[] },
+            ],
+          };
+          setProject(wrapped);
+          setActivePageSlug("index");
+        } else {
+          throw new Error("The AI response did not match the expected schema. Please regenerate.");
+        }
+      }
     } catch (e: any) {
       console.error(e);
-      setError(e.message || "Failed to generate site");
+      setError(e.message || "Failed to generate site. Please try again.");
     } finally {
       setLoading(false);
     }
