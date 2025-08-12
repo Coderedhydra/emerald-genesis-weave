@@ -28,3 +28,22 @@ export type GeneratedSite = {
   theme?: "green" | "light" | "dark";
   sections: Array<HeroSection | FeaturesSection | TestimonialSection | CtaSection>;
 };
+
+export type GeneratedWebsite = {
+  title: string;
+  description: string;
+  theme?: "green" | "light" | "dark";
+  files: {
+    html: string;
+    css: string;
+    js?: string;
+    nodejs?: {
+      packageJson: string;
+      serverJs: string;
+      routes?: Record<string, string>;
+    };
+  };
+  features: string[];
+  responsive: boolean;
+  interactive: boolean;
+};
