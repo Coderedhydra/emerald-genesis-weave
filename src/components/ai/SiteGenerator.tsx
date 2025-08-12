@@ -15,6 +15,8 @@ import type { GeneratedProject, ProjectPage, Section } from "@/types/site";
 import { z } from "zod";
 import { buildStandaloneHtml } from "@/lib/exportSite";
 import { buildProjectZip, buildMultiPageZip } from "@/lib/exportSite";
+import JSON5 from "json5";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 
 const SectionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -93,9 +95,12 @@ function robustJsonParse(raw: string): any {
   text = text.replace(/,\s*([}\]])/g, "$1");
   try {
     return JSON.parse(text);
-  } catch (e) {
-    throw new Error("Model returned invalid JSON. Try simplifying the prompt or regenerating.");
-  }
+  } catch {}
+  // Last resort: JSON5
+  try {
+    return JSON5.parse(text);
+  } catch {}
+  throw new Error("Model returned invalid JSON. Try simplifying the prompt or regenerating.");
 }
 
 type Viewport = "desktop" | "tablet" | "mobile";
@@ -153,7 +158,7 @@ export function SiteGenerator() {
  - Provide 4-6 pages, for example: Home (hero, features, testimonial, cta), Services (features list), Pricing (features and cta), About (hero/testimonial), Contact (cta)
  - Each page must include 1-3 sections appropriate to the page
  - Slugs must be lowercase kebab-case
- - Output pure JSON, no markdown fences.`,
+ - Output pure JSON, no markdown fences, no comments, no trailing commas, no backticks.`,
     []
   );
 
@@ -351,7 +356,7 @@ export function SiteGenerator() {
           <ResizablePanel defaultSize={62} minSize={40} className="bg-muted/20">
             <div className="h-full flex flex-col">
               {/* Preview top bar */}
-              <div className="border-b px-3 sm:px-4 h-12 flex items-center justify-between gap-3 bg-background/80">
+              <div className="border-b px-3 sm:px-4 h-12 flex items-center justify-between gap-3 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="size-6 rounded" style={{ backgroundImage: "var(--gradient-primary)" }} />
                   <span className="font-medium truncate">
@@ -360,16 +365,16 @@ export function SiteGenerator() {
                 </div>
                 <div className="flex items-center gap-2">
                   {project && (
-                    <select
-                      className="h-8 border rounded px-2 text-sm bg-background"
-                      value={activePageSlug ?? project.pages[0]?.slug}
-                      onChange={(e) => setActivePageSlug(e.target.value)}
-                      aria-label="Select page"
-                    >
-                      {project.pages.map((p) => (
-                        <option key={p.slug} value={p.slug}>{p.title}</option>
-                      ))}
-                    </select>
+                    <Select value={activePageSlug ?? project.pages[0]?.slug} onValueChange={setActivePageSlug}>
+                      <SelectTrigger className="h-8 w-[200px]">
+                        <SelectValue placeholder="Select page" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {project.pages.map((p) => (
+                          <SelectItem key={p.slug} value={p.slug}>{p.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
                   <Button
                     variant={viewport === "mobile" ? "secondary" : "outline"}
@@ -396,7 +401,7 @@ export function SiteGenerator() {
                     Desktop
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={handleGenerate}
                     disabled={loading}
@@ -414,7 +419,7 @@ export function SiteGenerator() {
                     Download
                   </Button>
                   <Button
-                    variant="secondary"
+                    variant="hero"
                     size="sm"
                     onClick={handleDownloadZip}
                     disabled={!project}
