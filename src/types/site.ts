@@ -49,3 +49,29 @@ export type GeneratedWebsite = {
   responsive: boolean;
   interactive: boolean;
 };
+
+export type GeneratedReactProject = {
+  title: string;
+  description: string;
+  theme?: "green" | "light" | "dark";
+  framework: "react-vite-typescript";
+  files: {
+    packageJson: string;
+    viteConfig: string;
+    tsConfig: string;
+    tailwindConfig: string;
+    postcssConfig: string;
+    indexHtml: string;
+    mainTsx: string;
+    appTsx: string;
+    appCss: string;
+    components: Record<string, string>;
+    pages: Record<string, string>;
+    lib: Record<string, string>;
+  };
+  additionalFiles?: Record<string, string>;
+  features: string[];
+  responsive: boolean;
+  interactive: boolean;
+  shadcnComponents: string[];
+};
