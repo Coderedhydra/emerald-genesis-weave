@@ -33,6 +33,7 @@ export type GeneratedWebsite = {
   title: string;
   description: string;
   theme?: "green" | "light" | "dark";
+  framework?: string;
   files: {
     html: string;
     css: string;
@@ -43,6 +44,7 @@ export type GeneratedWebsite = {
       routes?: Record<string, string>;
     };
   };
+  additionalFiles?: Record<string, string>;
   features: string[];
   responsive: boolean;
   interactive: boolean;

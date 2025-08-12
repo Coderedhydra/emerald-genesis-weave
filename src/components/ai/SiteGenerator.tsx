@@ -60,6 +60,7 @@ const WebsiteSchema = z.object({
   title: z.string(),
   description: z.string(),
   theme: z.enum(["green", "light", "dark"]).optional(),
+  framework: z.string().optional(),
   files: z.object({
     html: z.string(),
     css: z.string(),
@@ -70,6 +71,7 @@ const WebsiteSchema = z.object({
       routes: z.record(z.string()).optional(),
     }).optional(),
   }),
+  additionalFiles: z.record(z.string()).optional(),
   features: z.array(z.string()),
   responsive: z.boolean(),
   interactive: z.boolean(),
@@ -83,6 +85,50 @@ function cleanToJson(text: string) {
     .replace(/^```\n?/i, "")
     .replace(/\n?```$/i, "")
     .trim();
+}
+
+// New: helper to ask Gemini to fix invalid JSON into target schema
+async function attemptAutoFix({
+  apiKey,
+  model,
+  schemaDescription,
+  badText,
+  maxOutputTokens,
+}: {
+  apiKey: string;
+  model: string;
+  schemaDescription: string;
+  badText: string;
+  maxOutputTokens: number;
+}): Promise<string> {
+  const fixerPrompt = `You are a strict JSON fixer. Return only valid JSON matching the schema. No markdown fences, no explanations. If fields are missing, infer sensible defaults. If extra fields exist, remove them. Schema:\n${schemaDescription}\n\nInvalid JSON or text to fix:\n${badText}`;
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      model
+    )}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          { role: "user", parts: [{ text: fixerPrompt }] },
+        ],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens,
+        },
+      }),
+    }
+  );
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Gemini fixer error: ${res.status} ${txt}`);
+  }
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text as string | undefined;
+  if (!text) throw new Error("No fixer content returned by model");
+  return cleanToJson(text);
 }
 
 type Viewport = "desktop" | "tablet" | "mobile";
@@ -101,6 +147,8 @@ export function SiteGenerator() {
   const [website, setWebsite] = useState<GeneratedWebsite | null>(null);
   const [viewport, setViewport] = useState<Viewport>("desktop");
   const [activeTab, setActiveTab] = useState("preview");
+  const [lastRawText, setLastRawText] = useState<string | null>(null);
+  const [fixing, setFixing] = useState(false);
 
   // Load from localStorage
   useEffect(() => {
@@ -134,57 +182,36 @@ export function SiteGenerator() {
 
   const previewSystemPrompt = useMemo(
     () =>
-      `You are an expert product designer and front-end architect. Generate only JSON, no prose. The JSON must conform to this TypeScript type without extra fields:
-
-type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };
-type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };
-type TestimonialSection = { type: "testimonial"; quote: string; author: string };
-type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };
-export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };
-
-Constraints:
-- title must be short and brandable
-- theme should be "green" by default
-- Provide EXACTLY one hero, one features section (3 items), optionally one testimonial, and one cta.
-- No markdown fences. Output pure JSON.`,
+      `You are an expert product designer and front-end architect. Generate only JSON, no prose. The JSON must conform to this TypeScript type without extra fields:\n\n` +
+      `type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };\n` +
+      `type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };\n` +
+      `type TestimonialSection = { type: "testimonial"; quote: string; author: string };\n` +
+      `type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };\n` +
+      `export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };\n\n` +
+      `Constraints:\n` +
+      `- title must be short and brandable\n` +
+      `- theme should be "green" by default\n` +
+      `- Provide EXACTLY one hero, one features section (3 items), optionally one testimonial, and one cta.\n` +
+      `- No markdown fences. Output pure JSON.`,
     []
   );
 
   const fullstackSystemPrompt = useMemo(
     () =>
-      `You are a full-stack web developer expert. Generate a complete website with HTML, CSS, JavaScript, and Node.js backend. Return only JSON without markdown fences.
-
-The JSON must conform to this structure:
-{
-  "title": "Website Title",
-  "description": "Brief description",
-  "theme": "green" | "light" | "dark",
-  "files": {
-    "html": "Complete HTML with semantic structure, meta tags, and accessibility",
-    "css": "Modern CSS with responsive design, animations, and green theme",
-    "js": "Interactive JavaScript with modern ES6+ features",
-    "nodejs": {
-      "packageJson": "Complete package.json with dependencies",
-      "serverJs": "Express.js server with routes and middleware",
-      "routes": { "routeName": "route handler code" }
-    }
-  },
-  "features": ["responsive", "interactive", "accessible", "seo-optimized"],
-  "responsive": true,
-  "interactive": true
-}
-
-Requirements:
-- Use modern HTML5 semantic elements
-- Implement responsive CSS Grid/Flexbox
-- Add smooth animations and transitions
-- Include interactive JavaScript features
-- Create Node.js backend with Express
-- Add form handling and API endpoints
-- Ensure accessibility (ARIA labels, semantic HTML)
-- Optimize for SEO (meta tags, structured data)
-- Use green color scheme by default
-- Make it production-ready`,
+      `You are a full-stack web developer expert. Generate a complete website with HTML, CSS, JavaScript, and Node.js backend. Return only JSON without markdown fences.\n\n` +
+      `The JSON must conform to this structure:\n` +
+      `{\n  "title": "Website Title",\n  "description": "Brief description",\n  "theme": "green" | "light" | "dark",\n  "framework": "static|react|next|vue|svelte|astro" (optional),\n  "files": {\n    "html": "Complete HTML with semantic structure, meta tags, and accessibility",\n    "css": "Modern CSS with responsive design, animations, and green theme",\n    "js": "Interactive JavaScript with modern ES6+ features",\n    "nodejs": {\n      "packageJson": "Complete package.json with dependencies",\n      "serverJs": "Express.js server with routes and middleware",\n      "routes": { "routeName": "route handler code" }\n    }\n  },\n  "additionalFiles": { "path/filename": "file content" } (optional),\n  "features": ["responsive", "interactive", "accessible", "seo-optimized"],\n  "responsive": true,\n  "interactive": true\n}\n\n` +
+      `Requirements:\n` +
+      `- Use modern HTML5 semantic elements\n` +
+      `- Implement responsive CSS Grid/Flexbox\n` +
+      `- Add smooth animations and transitions\n` +
+      `- Include interactive JavaScript features\n` +
+      `- Create Node.js backend with Express\n` +
+      `- Add form handling and API endpoints\n` +
+      `- Ensure accessibility (ARIA labels, semantic HTML)\n` +
+      `- Optimize for SEO (meta tags, structured data)\n` +
+      `- Use green color scheme by default\n` +
+      `- Make it production-ready`,
     []
   );
 
@@ -210,6 +237,12 @@ Requirements:
       }
     }
 
+    if (website.additionalFiles) {
+      Object.entries(website.additionalFiles).forEach(([path, content]) => {
+        files.push({ name: path, content });
+      });
+    }
+
     // Create and download zip-like structure as individual files
     files.forEach(file => {
       const blob = new Blob([file.content], { type: 'text/plain' });
@@ -229,6 +262,7 @@ Requirements:
     setError(null);
     setSite(null);
     setWebsite(null);
+    setLastRawText(null);
     
     try {
       if (!apiKey) {
@@ -273,22 +307,127 @@ Requirements:
         | undefined;
       if (!text) throw new Error("No content returned by model");
 
+      setLastRawText(text);
       const jsonText = cleanToJson(text);
-      
-      if (generationType === "preview") {
-        const parsed = SiteSchema.parse(JSON.parse(jsonText)) as GeneratedSite;
-        setSite(parsed);
-        setActiveTab("preview");
-      } else {
-        const parsed = WebsiteSchema.parse(JSON.parse(jsonText)) as GeneratedWebsite;
-        setWebsite(parsed);
-        setActiveTab("html");
+
+      try {
+        if (generationType === "preview") {
+          const parsed = SiteSchema.parse(JSON.parse(jsonText)) as GeneratedSite;
+          setSite(parsed);
+          setActiveTab("preview");
+        } else {
+          const parsed = WebsiteSchema.parse(JSON.parse(jsonText)) as GeneratedWebsite;
+          setWebsite(parsed);
+          setActiveTab("html");
+        }
+      } catch (parseErr: any) {
+        // Attempt auto-fix once
+        const schemaDesc = generationType === "preview"
+          ? `type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };\n` +
+            `type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };\n` +
+            `type TestimonialSection = { type: "testimonial"; quote: string; author: string };\n` +
+            `type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };\n` +
+            `export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };`
+          : `{
+  "title": "Website Title",
+  "description": "Brief description",
+  "theme": "green" | "light" | "dark",
+  "files": {
+    "html": "Complete HTML",
+    "css": "Modern CSS",
+    "js": "Interactive JavaScript",
+    "nodejs": {
+      "packageJson": "Complete package.json",
+      "serverJs": "Express.js server",
+      "routes": { "routeName": "route handler code" }
+    }
+  },
+  "features": ["responsive", "interactive", "accessible", "seo-optimized"],
+  "responsive": true,
+  "interactive": true
+}`;
+
+        try {
+          const fixed = await attemptAutoFix({
+            apiKey,
+            model,
+            schemaDescription: schemaDesc,
+            badText: jsonText,
+            maxOutputTokens: generationType === "fullstack" ? 4000 : 800,
+          });
+          if (generationType === "preview") {
+            const parsed = SiteSchema.parse(JSON.parse(fixed)) as GeneratedSite;
+            setSite(parsed);
+            setActiveTab("preview");
+          } else {
+            const parsed = WebsiteSchema.parse(JSON.parse(fixed)) as GeneratedWebsite;
+            setWebsite(parsed);
+            setActiveTab("html");
+          }
+        } catch (fixErr: any) {
+          setError(
+            `Generation returned invalid JSON and auto-fix failed: ${fixErr?.message || "unknown error"}`
+          );
+        }
       }
     } catch (e: any) {
       console.error(e);
       setError(e.message || "Failed to generate website");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleManualFix() {
+    if (!apiKey || !lastRawText) return;
+    setFixing(true);
+    setError(null);
+    try {
+      const schemaDesc = generationType === "preview"
+        ? `type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };\n` +
+          `type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };\n` +
+          `type TestimonialSection = { type: "testimonial"; quote: string; author: string };\n` +
+          `type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };\n` +
+          `export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };`
+        : `{
+  "title": "Website Title",
+  "description": "Brief description",
+  "theme": "green" | "light" | "dark",
+  "files": {
+    "html": "Complete HTML",
+    "css": "Modern CSS",
+    "js": "Interactive JavaScript",
+    "nodejs": {
+      "packageJson": "Complete package.json",
+      "serverJs": "Express.js server",
+      "routes": { "routeName": "route handler code" }
+    }
+  },
+  "features": ["responsive", "interactive", "accessible", "seo-optimized"],
+  "responsive": true,
+  "interactive": true
+}`;
+
+      const fixed = await attemptAutoFix({
+        apiKey,
+        model,
+        schemaDescription: schemaDesc,
+        badText: lastRawText,
+        maxOutputTokens: generationType === "fullstack" ? 4000 : 800,
+      });
+      if (generationType === "preview") {
+        const parsed = SiteSchema.parse(JSON.parse(fixed)) as GeneratedSite;
+        setSite(parsed);
+        setActiveTab("preview");
+      } else {
+        const parsed = WebsiteSchema.parse(JSON.parse(fixed)) as GeneratedWebsite;
+        setWebsite(parsed);
+        setActiveTab("html");
+      }
+    } catch (err: any) {
+      setError(`Manual fix failed: ${err?.message || "unknown error"}`);
+    } finally {
+      setFixing(false);
     }
   }
 
@@ -407,6 +546,17 @@ Requirements:
                         <Download className="w-4 h-4" />
                       </Button>
                     )}
+                    {lastRawText && (
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={handleManualFix}
+                        disabled={fixing}
+                        aria-label="Attempt auto-fix"
+                      >
+                        {fixing ? "Fixing..." : "Auto Fix"}
+                      </Button>
+                    )}
                   </div>
                   {error && (
                     <p className="text-sm text-destructive">{error}</p>
@@ -487,11 +637,12 @@ Requirements:
                 {website ? (
                   <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
                     <div className="border-b px-4 py-2">
-                      <TabsList className="grid w-full grid-cols-4">
+                      <TabsList className="grid w-full grid-cols-5">
                         <TabsTrigger value="preview">Preview</TabsTrigger>
                         <TabsTrigger value="html">HTML</TabsTrigger>
                         <TabsTrigger value="css">CSS</TabsTrigger>
                         <TabsTrigger value="js">JavaScript</TabsTrigger>
+                        <TabsTrigger value="files">Files</TabsTrigger>
                       </TabsList>
                     </div>
                     
@@ -534,6 +685,30 @@ Requirements:
                       <pre className="bg-muted p-4 rounded-lg overflow-auto text-sm h-full">
                         <code>{website.files.js || '// No JavaScript generated'}</code>
                       </pre>
+                    </TabsContent>
+
+                    <TabsContent value="files" className="p-4 h-full">
+                      <div className="space-y-3">
+                        {website.framework && (
+                          <div className="text-sm text-muted-foreground">
+                            <span className="font-medium text-foreground">Framework:</span> {website.framework}
+                          </div>
+                        )}
+                        {website.additionalFiles ? (
+                          <div className="space-y-2">
+                            {Object.entries(website.additionalFiles).map(([path, content]) => (
+                              <details key={path} className="rounded-lg border bg-card">
+                                <summary className="cursor-pointer px-3 py-2 text-sm font-medium">{path}</summary>
+                                <pre className="bg-muted m-3 p-3 rounded-lg overflow-auto text-xs max-h-80">
+                                  <code>{content}</code>
+                                </pre>
+                              </details>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No additional files generated.</p>
+                        )}
+                      </div>
                     </TabsContent>
                   </Tabs>
                 ) : (
