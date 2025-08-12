@@ -13,6 +13,7 @@ import {
 import { PageRenderer } from "./PageRenderer";
 import { GeneratedSite } from "@/types/site";
 import { z } from "zod";
+import { buildStandaloneHtml, filenameForSite } from "@/lib/exportSite";
 
 const SiteSchema = z.object({
   title: z.string(),
@@ -102,17 +103,17 @@ export function SiteGenerator() {
     () =>
       `You are an expert product designer and front-end architect. Generate only JSON, no prose. The JSON must conform to this TypeScript type without extra fields:
 
-type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };
-type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };
-type TestimonialSection = { type: "testimonial"; quote: string; author: string };
-type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };
-export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };
+ type HeroSection = { type: "hero"; headline: string; subheadline?: string; ctaLabel?: string };
+ type FeaturesSection = { type: "features"; title?: string; items: { title: string; description: string; icon?: string }[] };
+ type TestimonialSection = { type: "testimonial"; quote: string; author: string };
+ type CtaSection = { type: "cta"; headline: string; ctaLabel?: string };
+ export type GeneratedSite = { title: string; theme?: "green"|"light"|"dark"; sections: Array<HeroSection|FeaturesSection|TestimonialSection|CtaSection> };
 
-Constraints:
-- title must be short and brandable
-- theme should be "green" by default
-- Provide EXACTLY one hero, one features section (3 items), optionally one testimonial, and one cta.
-- No markdown fences. Output pure JSON.`,
+ Constraints:
+ - title must be short and brandable
+ - theme should be "green" by default
+ - Provide EXACTLY one hero, one features section (3 items), optionally one testimonial, and one cta.
+ - No markdown fences. Output pure JSON.`,
     []
   );
 
@@ -170,6 +171,21 @@ Constraints:
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleDownload() {
+    if (!site) return;
+    const html = buildStandaloneHtml(site);
+    const filename = filenameForSite(site);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   const frameWidthClass =
@@ -296,6 +312,15 @@ Constraints:
                     aria-label="Regenerate"
                   >
                     {loading ? "…" : "Regenerate"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownload}
+                    disabled={!site}
+                    aria-label="Download website"
+                  >
+                    Download
                   </Button>
                 </div>
               </div>
