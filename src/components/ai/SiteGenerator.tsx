@@ -16,7 +16,7 @@ import {
 import { PageRenderer } from "./PageRenderer";
 import { GeneratedSite, GeneratedWebsite, GeneratedReactProject } from "@/types/site";
 import { z } from "zod";
-import { Download, Code, Globe, Server, Smartphone, Tablet, Monitor } from "lucide-react";
+import { Download, Code, Globe, Server, Smartphone, Tablet, Monitor, Palette } from "lucide-react";
 
 const SiteSchema = z.object({
   title: z.string(),
